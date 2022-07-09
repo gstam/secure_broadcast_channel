@@ -4,6 +4,7 @@
 # Reward function: function f
 # from google.colab import files
 
+import pdb
 import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
@@ -13,172 +14,6 @@ from  statistics import mean
 from datetime import datetime
 
 
-#def check_stability(lambda_v, rate):
-#    if lambda_v > rate:
-#        raise ValueError('Choose another transmission power')
-
-def get_state_transition_reward(action, backlog_1, reward_weights, lambda_v, PathLoss, threshold1, threshold2, distance1, distance2, distance3, power_max, power_J, g, q1, q2):
-
-    power1 = action
-    power2 = power_max - power1
-
-    successProb112 = np.exp((-(threshold1 * distance1**PathLoss)/(power1 - threshold1*power2))*(1 + power_J*g**2))*(1 - np.exp(-(threshold1 * distance2**PathLoss)/(power1 - threshold1*power2))*(1 + threshold1*(power_J/(power1 - threshold1*power2))*(distance2/distance3)**PathLoss)**(-1))                   
-    successProb22 = np.exp(-(threshold2 * distance2**PathLoss)/power2)
-    successProb11 = np.exp(((-threshold1* distance1**PathLoss)/power1)*(1 + power_J*g**2)) *(1-np.exp(((-threshold1*distance2**PathLoss)/power1))*(1 + threshold1*(power_J/power1)*(distance2/distance3)**PathLoss)**(-1))
-    successProb212 = np.exp(-(threshold2 * distance2**PathLoss)/(power2 - threshold2*power1))*(1 + (threshold2 * power_J/(power2-threshold2*power1))*(distance2/distance3)**PathLoss)**(-1)
-
-    theoretical_saturated_throughput =  successProb22 - (((1-q2*(1-q1))*successProb22 - q1*q2*successProb212)/(q1*q2*successProb112 + q1*(1-q2)*successProb11))*lambda_v
-    #the service rate for the legitimate user
-    rate = q1*q2*successProb112 + q1*(1-q2)*successProb11
-    #print('Service rate (correct value): ', float(rate))
-    if lambda_v <= rate:
-        rate2 = theoretical_saturated_throughput
-    else:
-        rate2 =q2*(1-q1)*successProb22  + q2*q1*successProb212
-
-    #---------------------------------- No secrecy -----------------------------------------------------#
-    successProb112_no_secrecy = np.exp(-(threshold1 * distance1**PathLoss/(power1 - threshold1*power2)))
-    successProb212_no_secrecy = np.exp(-(threshold2*distance2**PathLoss/(power2 - threshold2*power1)))
-    successProb22_no_secrecy = np.exp(-(threshold2 * distance2**PathLoss)/power2)
-    successProb11_no_secrecy = np.exp(-(threshold1 * distance1**PathLoss/power1))
-    rate_no_secrecy = q1*q2*successProb112_no_secrecy + q1*(1-q2)*successProb11_no_secrecy
-
-    f = rate/rate_no_secrecy
-    
-    reward = reward_weights[0]*f + reward_weights[1]*rate2 + reward_weights[2]*(1/(backlog_1 + 1))
-    if print_reward == True:
-      print(f'State: {backlog_1} \t Action: {action} \t f: {reward_weights[0]*f} \t Rate2: {reward_weights[1]*rate2} \t Backlog Reward: {reward_weights[2]*(1/(backlog_1 + 1))}')
-    
-    return reward, rate, rate2
-
-def start_env(env,agent,action, lambda_v, simulation_time, timeslot_duration, delta_1, delta_2, d_ub):   
-  #global PREVIOUS_PACKET_INDEX # this is the index of last packet in the previous timeslot
-  #global CURRENT_PACKET_INDEX # this is the index for the timeslot that just finished
-  global CURRENT_TIME #this is the current running second in time
-  global timeslot # I added this line
-  #global SUM_WEIGHTS
-  
-  # set the correct power level
-  # power1 = action[0]
-  # power2 = power_max - power1
-
-  # successProb112 = np.exp((-(threshold1 * distance1**PathLoss)/(power1 - threshold1*power2))*(1 + power_J*g**2))*(1 - np.exp(-(threshold1 * distance2**PathLoss)/(power1 - threshold1*power2))*(1 + threshold1*(power_J/(power1 - threshold1*power2))*(distance2/distance3)**PathLoss)**(-1))                   
-  # successProb22 = np.exp(-(threshold2 * distance2**PathLoss)/power2)
-  # successProb11 = np.exp(((-threshold1* distance1**PathLoss)/power1)*(1 + power_J*g**2)) *(1-np.exp(((-threshold1*distance2**PathLoss)/power1))*(1 + threshold1*(power_J/power1)*(distance2/distance3)**PathLoss)**(-1))
-  # successProb212 = np.exp(-(threshold2 * distance2**PathLoss)/(power2 - threshold2*power1))*(1 + (threshold2 * power_J/(power2-threshold2*power1))*(distance2/distance3)**PathLoss)**(-1)
-  
-  # theoretical_saturated_throughput =  successProb22 - (((1-q2*(1-q1))*successProb22 - q1*q2*successProb212)/(q1*q2*successProb112 + q1*(1-q2)*successProb11))*lambda_v
-  # #the service rate for the legitimate user
-  # rate = q1*q2*successProb112 + q1*(1-q2)*successProb11
-  # #print('Service rate (correct value): ', float(rate))
-  # rate2 = theoretical_saturated_throughput
-
-  # #---------------------------------- No secrecy -----------------------------------------------------#
-  # successProb112_no_secrecy = np.exp(-(threshold1*distance1**PathLoss/(power1 - threshold1*power2)))
-  # successProb212_no_secrecy = np.exp(-(threshold2*distance2**PathLoss/(power2 - threshold2*power1)))
-  # successProb22_no_secrecy = np.exp(-(threshold2 * distance2**PathLoss)/power2)
-  # successProb11_no_secrecy = np.exp(-(threshold1 * distance1**PathLoss/power1))
-
-  # rate_no_secrecy = q1*q2*successProb112_no_secrecy + q1*(1-q2)*successProb11_no_secrecy
-
-  # function_f_Both_TIN = 1 - (rate/rate_no_secrecy)
-  function_f_Both_TIN, rate, rate2 = get_state_transition_reward(action, env.queueSizeBur[CURRENT_TIME], reward_weights, lambda_v, PathLoss, threshold1, threshold2, distance1, distance2, distance3, power_max, power_J, g, q1, q2)
-
-           
-  """
-  current_time : it is the duration of an episode
-  """
-  currentTime = CURRENT_TIME
-  # bursty traffic 
-  has_packet = env.queueSizeBur[currentTime] > 0
-  has_arrival = random.random() < lambda_v
-  has_departure = random.uniform(0,1) < rate
-  has_space_left = env.queueSizeBur[currentTime] < B_threshold 
-        
-  #departures    
-  if  has_packet: 
-      if has_departure:
-        # print('Packet departure')
-        env.packet_departure(currentTime)
-        env.received_Q1 += 1 
-          
-      else:
-        # print('Packet retransmission') 
-        env.trasmisson_delay[env.first_in_queue] = env.trasmisson_delay[env.first_in_queue] + 1            
-  # arrivals
-  env.received_Q2 = 0 ################# ---------------------- ???????????????????????????????????????
-  if has_arrival and has_space_left: 
-    # print('Packet arrival')
-    env.packet_arrival(currentTime) 
-
-
-
-  env.queueSizeBur[currentTime + 1] = env.queueSizeBur[currentTime]
-  
-  #------------------------------------------------------------------
-  # saturated queue
-  # arrivals
-  env.queueSizeSat[currentTime] = env.packet_arrival_saturated(currentTime)
-  has_packetSat = env.queueSizeSat[currentTime] > 0
-  has_departureSat = random.uniform(0,1) < rate2
-  # departures
-  if has_packetSat:
-      if has_departureSat:        
-          env.packet_departure_saturated(rate2, currentTime)
-          env.received_Q2 += 1
-
-  #env.packet_nr = env.packet_nr - 1 # decrease the pointer
-  saturated_throughput_reward = env.received_Q2       ############################/currentTime 
-  transmission_delay_list =  env.trasmisson_delay[1:env.packet_nr] 
-  #print('transmission_delay_list: ', transmission_delay_list)
-  queuing_delay_list = env.total_delay[1:env.packet_nr]
-  #print('queuing_delay_list: ', queuing_delay_list)
-
-  # calculations only for assigning the weights
-  weights = np.zeros(env.packet_nr)
-  SUM_WEIGHTS = 0
-  delay_reward_array = np.zeros(env.packet_nr)
-  for packet in range(1,env.packet_nr):  
-      if (queuing_delay_list[packet-1] + transmission_delay_list[packet-1]) <= d_ub:
-          weights[packet-1] = delta_1
-      else:
-          weights[packet-1] = delta_2
-  SUM_WEIGHTS = np.sum(weights)
-
-  delay_reward = SUM_WEIGHTS/env.packet_nr
-  #-------------------------------------------------------------
-
-  average_packet_delay = np.sum(queuing_delay_list + transmission_delay_list)/env.packet_nr
-  
-  PREVIOUS_PACKET_INDEX = CURRENT_PACKET_INDEX
-  CURRENT_TIME += timeslot_duration 
-
-  return saturated_throughput_reward, delay_reward, rate, env.queueSizeBur[CURRENT_TIME], average_packet_delay, function_f_Both_TIN 
-
-class Agent:
-    """
-    The state of the agent consists of the queue 
-    We take into account all the characteristics of the queue such as length and delays
-    """
-    def __init__(self):
-        pass
-    
-    def step(self, env, action):
-        """
-        This step method corresponds to the action for each episode
-        -----
-        It accepts the environment instance as an argument and allows the
-        agent to perform the following actions:
-        1) Observe the environment
-        2) Make a decision about the action to take based on the observations
-        3) Submit the action to the environment
-        4) Get the reward for the current step
-        """ 
-        # the observation is the state of the environment
-        current_obs = env.get_observation()
-        #actions = env.get_actions()
-        reward, rate, current_observation, average_packet_delay = env.action(action)
-        return current_observation, reward, average_packet_delay
 
 class Queue():
     def __init__(self, capacity):
@@ -273,7 +108,7 @@ class Environment():
     def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1):
         power2 = self.P_max - power1
         if W_tx_Q1 == True:       # Jamming
-            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/(self.power2 - self.threshold2*self.power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
+            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/(power1 - self.threshold2*power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
         else:                           # No jamming
             Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/power2) 
         return Pr_suc_rx_Q2_to_D2
@@ -282,58 +117,51 @@ class Environment():
     def get_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
         power2 = self.P_max - power1
         if W_tx_Q2 == True:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(self.power1 - self.threshold1*self.power2))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
+            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
         else:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1))*(1 + self.threshold1*(self.power_J/(self.power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
+            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1))*(1 + self.threshold1*(self.power_J/(power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
         return Pr_suc_rx_Q1_to_D2
 
     def step(self, power1):
         # Get random transmissions from Q1 and Q2
         rnd = np.random.default_rng().uniform(0., 1., 1)
-        if self.Q1.backlog > 0:
-            if rnd < self.Pr_tx_Q1:
+        W_tx_Q1 = False
+        if self.Q1.backlog > 0 and rnd < self.Pr_tx_Q1:
                 W_tx_Q1 = True
-            else:
-                W_tx_Q1 = False
-        
+            
         rnd = np.random.default_rng().uniform(0., 1., 1)
+        W_tx_Q2 = False
         if rnd < self.Pr_tx_Q2:
             W_tx_Q2 = True
-        else:
-            W_tx_Q2 = False
-
+        
         # Calculate probabilities to have a  successful reception at the destinations and the 
         # potential violation of the security constraint.
+        Pr_suc_rx_Q1_to_D1 = .0
+        Pr_suc_rx_Q1_to_D2 = .0
         if W_tx_Q1 == True:
             Pr_suc_rx_Q1_to_D1 = self.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2)
             Pr_suc_rx_Q1_to_D2 = self.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)
-        else:
-            Pr_suc_rx_Q1_to_D1 = .0
         
+        Pr_suc_rx_Q2_to_D2 = .0
         if W_tx_Q2 == True:
             Pr_suc_rx_Q2_to_D2 = self.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1)
-        else:
-            Pr_suc_rx_Q2_to_D2 = .0
 
         # Realization of the transmissions' outcomes and reward calculation
         rnd = np.random.default_rng().uniform(0., 1., 1)
         
+        w_suc_rx_Q1_to_D1 = False
         if rnd < Pr_suc_rx_Q1_to_D1:
             w_suc_rx_Q1_to_D1 = True
-        else:
-            w_suc_rx_Q1_to_D1 = False
-        
+            
+        w_suc_rx_Q2_to_D2 = False
         rnd = np.random.default_rng().uniform(0., 1., 1)
         if rnd < Pr_suc_rx_Q2_to_D2:
             w_suc_rx_Q2_to_D2 = True
-        else:
-            w_suc_rx_Q2_to_D2 = False
-            
+
+        w_suc_rx_Q1_to_D2 = False            
         rnd = np.random.default_rng().uniform(0., 1., 1)
         if rnd < Pr_suc_rx_Q1_to_D2:
             w_suc_rx_Q1_to_D2 = True
-        else:
-            w_suc_rx_Q1_to_D2 = False
         
         # Update state after successfull transmission.
         if w_suc_rx_Q1_to_D1:
@@ -348,9 +176,9 @@ class Environment():
         if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2 and (not w_suc_rx_Q1_to_D2):
             reward = 1
         if W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2):
-            reward = 1
+            reward = 0
         if W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
-            reward = 1
+            reward = 0
         else:
             reward = 0
 
@@ -477,7 +305,7 @@ class Buffer:
 
 # This update target parameters slowly
 # Based on rate `tau`, which is much less than one.
-@tf.function
+# @tf.function
 def update_target(target_weights, weights, tau):
     for (a, b) in zip(target_weights, weights):
         a.assign(b * tau + a * (1 - tau))
@@ -579,11 +407,12 @@ def policy_plot(actor_model):
     plt.ylabel('action')
     plt.ylim([55, 164])
     plt.show()
+    plt.savefig()
     
 
 if __name__ == '__main__':
-
-    lambda_v = 0.4
+    # pdb.set_trace()
+    lambda_v = 0.8
     Pr_arrival_Q1 = lambda_v
     B_threshold = 100 # queue capacity
     capacity_Q1 = B_threshold
@@ -597,12 +426,11 @@ if __name__ == '__main__':
     power_J = 5 #199.99
     g = 0.008735
     q1 = 1 #0.8
-    q2 = 0.8
+    q2 = 1.
     P_max = 200
 
-
     episodes = 1
-    episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
+    episode_duration = 5000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
 
     print_loss = False
     print_reward = True
@@ -653,29 +481,29 @@ if __name__ == '__main__':
     
     log_file_name = 'training_logfile.csv'
     log_file = open(log_file_name, "w") #
-    log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State;Average Packet Delay\n')        
-    noise_denominator = 1.
+    log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
+    noise_denominator = 10.
     noise_scale_factor = (upper_bound - lower_bound)/noise_denominator  
     
     for episode in range(1, episodes+1):
         total_episode_reward = 0
         state = env.reset()
-        CURRENT_TIME = 1
         # print(f'Episode: {episode}')
-        timeslot = 0         
+        timeslot = 0
 
-        if episode % 1 == 0 and noise_denominator <= 128:
+        if episode % 10 == 0 and noise_denominator <= 128:
             noise_denominator *= 2
             noise_scale_factor = (upper_bound - lower_bound)/noise_denominator  
             print(f'Noise_denominator: {noise_denominator}')
         
-        while True:  #average_packet_delay < packet_delay_threshold:
-            # Env step based on action
+        while timeslot <= episode_duration:  #average_packet_delay < packet_delay_threshold:
+            
             tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
             # Choose action given a policy.
-            action = policy(tf_state, ou_noise, noise_scale_factor)
-            next_state, timeslot_reward, average_packet_delay = env.step(action)
-            total_episode_reward += timeslot_reward
+            action = policy(tf_state, ou_noise, noise_scale_factor, lower_bound, upper_bound)
+            # Get next state and reward
+            reward, next_state= env.step(action)
+            total_episode_reward += reward
 
             # Buffer management and learning
             if timeslot % 200 == 0:
@@ -687,27 +515,23 @@ if __name__ == '__main__':
               print_loss = False
               print_reward = False
 
-            buffer.record((state, action, timeslot_reward, next_state))
+            buffer.record((state, action, reward, next_state))
             buffer.learn()
             update_target(target_actor.variables, actor_model.variables, tau)
             update_target(target_critic.variables, critic_model.variables, tau)
 
             # Data logging
-            log_file.write(f'{episode};{timeslot};{state};{action};{timeslot_reward};{next_state};{average_packet_delay}\n')        
+            print(f'{episode};{timeslot};{state};{action};{reward};{next_state}\n')
+            log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state}\n')        
             
             state = next_state
-            
-            # if CURRENT_TIME % 1000 == 0:
-            #     print(f'Timeslot: {CURRENT_TIME} \t Accumulated Episode Reward: {total_episode_reward}')
-            # Check if end of episode        
-            if timeslot >= episode_duration:
-                # print('End of episode:', CURRENT_TIME)
-                print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward}')
-                policy_plot(actor_model)  
-                break
-            
-            timeslot += 1
+            timeslot += 1            
         
+        # print('End of episode:', CURRENT_TIME)
+        print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward}')
+        # policy_plot(actor_model)  
+        # break
+
     log_file.close()
 
     actor_model.save_weights("tx_power_actor.h5")
