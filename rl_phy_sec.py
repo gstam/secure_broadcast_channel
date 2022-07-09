@@ -248,87 +248,167 @@ class Queue():
     def reset(self):
         self.backlog = 0
 
-class SecureEnvironment():
-    #metadata = {'render.modes': ['human']}  
-        
-    def __init__(self, capacity):
-        """
-        The state of the environment is the two queues and the receivers.
-        """
-        self.Q1 = 0
-        self.Q2 = 0
-        self.capacity = capacity
-        
-    def packet_arrival(self, currentTime):
-        """
-        A packet arrives at queue Q1
-        """
-        if self.Q1 < self.capacity:
-            self.Q1 = self.Q1 + 1
-        
-
-    def packet_departure(self, currentTime):
-        """
-        The sink receives the packet
-        """
-        self.Q1 = self.Q1 - 1
-        
+class BernoulliArrivalProcess():
     
-    def packet_departure_saturated(self, rate2, currentTime):
-        self.Q2 = self.Q2 - 1
+    def init(self, success_probability):
+        self.success_probability = success_probability
+    
+    def set_success_probability(self, success_probability):
+        self.success_probability = success_probability
         
+    def get_success_probability(self):
+        return self.success_probability
+    
+    def generate_event(self):
+        if np.random.default_rng().uniform(0., 1., 1) < self.success_probability:
+            success = True
+        else:
+            success = False
+        return success 
+
+
+class Environment():
         
-    def reset(self, simulation_time):
-        self.queueSizeBur = np.arange(1,simulation_time+2)*0
-        self.queueSizeSat = np.arange(1,simulation_time+2)*0
-        self.arrivalVector = np.arange(1,simulation_time+2)*0
-        self.arrivalVectorSat = np.arange(1,simulation_time+2)*0
-        self.total_delay = np.arange(1,simulation_time+2)*0
-        self.total_delaySat = np.arange(1,simulation_time+2)*0
-        self.departureVector = np.arange(1,simulation_time+2)*0
-        self.departureSat = np.arange(1,simulation_time+2)*0
-        self.trasmisson_delay = np.arange(1,simulation_time+2)*0
-        self.arrivalVectorSat = np.arange(1,simulation_time+2)*0
-        self.first_in_queueSat = 1
-        self.packet_nrSat = 0
-        self.packet_nr = 1
-        self.first_in_queue = 1
-        self.total_reward = 0.0
-        self.received_Q1 = 0
-        self.received_Q2 = 0
-        self.counter_packet_arrivals = 0
-        return self.queueSizeBur[0]
+    def __init__(self, capacity, Pr_arrival_Q1):
+        # Queue with Bernoulli arrivals and finite capacity.
+        self.Q1 = Queue(capacity)
+        self.Pr_arrival_Q1 = Pr_arrival_Q1
+        
+        # Saturated queue: It has a capacity of 1  but it never gets empty because we have a probability of 1 to get fresh arrival at each timeslot
+        self.Q2 = Queue(capacity=1)
+        self.Pr_arrival_Q2 = 1.
+
+        # The environment is stochastic, so lots of probabilities...
+        q1 = 1.0 #0.8
+        q2 = 0.9
+        self.Pr_tx_Q1 = q1
+        self.Pr_tx_Q2 = q2
+        self.lambda_v = 0.4
+        self.PathLoss = 2.2
+        self.threshold1 = 0.379433
+        self.threshold2 = 0.225893
+        self.distance1 = 8.2
+        self.distance2 = 14.6
+        self.distance3 = 10
+        self.power_max = 200 
+        self.power_J = 5 #199.99
+        self.g = 0.008735
+        self.B_threshold = 100 # queue capacity
+        self.q1 = 1 #0.8
+        self.q2 = 0.8
+        self.P_max = 200
+        self.timeslot_duration = 1 
+        self.delta_1 = 1 
+        self.delta_2 = -9  
+        d_ub = 5 
+        # The following probabilities should be functions of the environment's parameters.
+        # self.Pr_suc_rx_Q1_to_D1 = Pr_suc_rx_Q1_to_D1
+        # self.Pr_suc_rx_Q2_to_D2 = Pr_suc_rx_Q2_to_D2
+        # self.Pr_suc_rx_Q1_to_D2 = Pr_suc_rx_Q1_to_D2 # Security constraint violation!
+    
+    # Probability that D1 will successfuly decode the packet sent by Q1. The computation depends on whether Q2 transmits or not.
+    def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2):
+        power2 = self.P_max - power1
+        if W_tx_Q2 == True: # extra interference due to Q2's transmission
+            Pr_suc_rx_Q1_to_D1 = np.exp((-(self.threshold1 * self.distance1**self.PathLoss)/(power1 - self.threshold1 * power2))*(1 + self.power_J*self.g**2)) 
+        else: 
+            Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss)/power1)*(1 + self.power_J*self.g**2)) 
+   
+        return Pr_suc_rx_Q1_to_D1
+    
+    # Probability that D2 will successfuly decode the packet sent by Q2. The computation depends on whether Q1 transmits or not.
+    def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1):
+        power2 = self.P_max - power1
+        if W_tx_Q1 == True:       # Jamming
+            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/(self.power2 - self.threshold2*self.power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
+        else:                           # No jamming
+            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/power2) 
+        return Pr_suc_rx_Q2_to_D2
+
+    # Probability that D2 will successfuly decode the packet sent by Q1. This is the secrecy violation scenario!
+    def get_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
+        power2 = self.P_max - power1
+        if W_tx_Q2 == True:
+            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(self.power1 - self.threshold1*self.power2))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
+        else:
+            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1))*(1 + self.threshold1*(self.power_J/(self.power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
+        return Pr_suc_rx_Q1_to_D2
+
+    def step(self, power1):
+        # Get random transmissions from Q1 and Q2
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        if self.Q1.backlog > 0:
+            if rnd < self.Pr_tx_Q1:
+                W_tx_Q1 = True
+            else:
+                W_tx_Q1 = False
+        
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        if rnd < self.Pr_tx_Q2:
+            W_tx_Q2 = True
+        else:
+            W_tx_Q2 = False
+
+        # Calculate probabilities to have a  successful reception at the destinations and the 
+        # potential violation of the security constraint.
+        if W_tx_Q1 == True:
+            Pr_suc_rx_Q1_to_D1 = self.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2)
+            Pr_suc_rx_Q1_to_D2 = self.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)
+        else:
+            Pr_suc_rx_Q1_to_D1 = .0
+        
+        if W_tx_Q2 == True:
+            Pr_suc_rx_Q2_to_D2 = self.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1)
+        else:
+            Pr_suc_rx_Q2_to_D2 = .0
+
+        # Realization of the transmissions' outcomes and reward calculation
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        
+        if rnd < Pr_suc_rx_Q1_to_D1:
+            w_suc_rx_Q1_to_D1 = True
+        else:
+            w_suc_rx_Q1_to_D1 = False
+        
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        if rnd < Pr_suc_rx_Q2_to_D2:
+            w_suc_rx_Q2_to_D2 = True
+        else:
+            w_suc_rx_Q2_to_D2 = False
+            
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        if rnd < Pr_suc_rx_Q1_to_D2:
+            w_suc_rx_Q1_to_D2 = True
+        else:
+            w_suc_rx_Q1_to_D2 = False
+        
+        # Update state after successfull transmission.
+        if w_suc_rx_Q1_to_D1:
+            self.Q1.packet_departure()
+        
+        # Late arrivals at Q1
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        if rnd < self.Pr_arrival_Q1:
+            self.Q1.packet_arrival()
+
+        # Calculate Reward : Reward is provided only if 
+        if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2 and (not w_suc_rx_Q1_to_D2):
+            reward = 1
+        if W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2):
+            reward = 1
+        if W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
+            reward = 1
+        else:
+            reward = 0
+
+        new_state = self.Q1.get_backlog()
+        
+        return reward, new_state
+
+    def reset(self):
+        self.Q1.set_backlog(0)
+        return self.Q1.get_backlog()
                 
-    
-    def get_observation(self):
-        """
-        Observations are what our actions are doing to the environment
-        (the states the environment goes through due to the agent's actions)
-        """
-        global CURRENT_TIME
-        return self.queueSizeBur[CURRENT_TIME]
-       
-    
-    def action(self, action):
-        """
-        It handles an agent's action and returns the reward for this action
-        The action is P1
-        """
-        saturated_throughput_reward, delay_reward, rate, state, average_packet_delay, function_f_Both_TIN = start_env(self,agent,action,lambda_v,self.simulation_time, timeslot_duration, delta_1, delta_2, d_ub)
-        # print('delay_reward: ', delay_reward)
-        # print('saturated_throughput_reward: ', saturated_throughput_reward)
-        #reward = saturated_throughput_reward #+ delay_reward  
-
-        """
-        assume duplicate packets, but when calculating the reward function, exit when state = 0
-        """
-        #if state == 0:
-        #  reward = float("nan")
-        #else:
-        reward = function_f_Both_TIN 
-
-        return reward, rate, state, average_packet_delay
-
 class OUActionNoise:    
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
         self.theta = theta
@@ -549,7 +629,7 @@ def policy_plot(actor_model):
     
 
 if __name__ == '__main__':
-    env = SecureEnvironment()
+    env = Environment()
     agent = Agent()
 
     lower_bound = (threshold1 / (1 + threshold1))*P_max
@@ -598,14 +678,12 @@ if __name__ == '__main__':
     log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State;Average Packet Delay\n')        
     noise_denominator = 1.
     noise_scale_factor = (upper_bound - lower_bound)/noise_denominator  
+    
     for episode in range(1, episodes+1):
-        state = env.reset(env.simulation_time)
+        state = env.reset()
         CURRENT_TIME = 1
         # print(f'Episode: {episode}')
-        average_packet_delay = 0
-        total_episode_reward = 0
         timeslot = 0         
-
 
         if episode % 1 == 0 and noise_denominator <= 128:
             noise_denominator *= 2
