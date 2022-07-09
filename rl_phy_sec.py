@@ -221,68 +221,62 @@ class Agent:
         reward, rate, current_observation, average_packet_delay = env.action(action)
         return current_observation, reward, average_packet_delay
 
+class Queue():
+    def __init__(self, capacity):
+        self.backlog = 0
+        self.capacity = capacity
+
+    def get_backlog(self):
+        return self.backlog
+    
+    def get_capacity(self):
+        return self.capacity
+    
+    def set_backlog(self, backlog):
+        self.backlog = backlog
+    
+    def set_capacity(self, capacity):
+        self.capacity = capacity
+    
+    def packet_arrival(self):
+        if self.backlog < self.capacity:
+            self.backlog = self.backlog + 1
+
+    def packet_departure(self):
+        self.backlog = self.backlog - 1
+        
+    def reset(self):
+        self.backlog = 0
+
 class SecureEnvironment():
     #metadata = {'render.modes': ['human']}  
         
-    def __init__(self):
+    def __init__(self, capacity):
         """
         The state of the environment is the two queues and the receivers.
         """
-        self.simulation_time = 1000000  # 1 million
-        self.queueSizeBur = np.arange(1,self.simulation_time+2)*0
-        self.queueSizeSat = np.arange(1,self.simulation_time+2)*0
-        self.arrivalVector = np.arange(1,self.simulation_time+2)*0
-        self.arrivalVectorSat = np.arange(1,self.simulation_time+2)*0
-        self.total_delay = np.arange(1,self.simulation_time+2)*0
-        self.total_delaySat = np.arange(1,self.simulation_time+2)*0
-        self.departureVector = np.arange(1,self.simulation_time+2)*0
-        self.departureSat = np.arange(1,self.simulation_time+2)*0
-        self.trasmisson_delay = np.arange(1,self.simulation_time+2)*0
-        self.arrivalVectorSat = np.arange(1,self.simulation_time+2)*0
-        self.first_in_queueSat = 1
-        self.packet_nrSat = 0
-        self.packet_nr = 1
-        self.first_in_queue = 1
-        self.total_reward = 0.0
-        self.received_Q1 = 0
-        self.received_Q2 = 0
-        self.counter_packet_arrivals = 0
-
+        self.Q1 = 0
+        self.Q2 = 0
+        self.capacity = capacity
+        
     def packet_arrival(self, currentTime):
         """
         A packet arrives at queue Q1
         """
-        self.queueSizeBur[currentTime] = self.queueSizeBur[currentTime] + 1
-        self.arrivalVector[self.packet_nr] = currentTime
-        # packet_nr is just a pointer 
-        self.packet_nr = self.packet_nr + 1
-        self.counter_packet_arrivals += 1
+        if self.Q1 < self.capacity:
+            self.Q1 = self.Q1 + 1
+        
 
     def packet_departure(self, currentTime):
         """
         The sink receives the packet
         """
-        self.queueSizeBur[currentTime] = self.queueSizeBur[currentTime] - 1
-        # this is the waiting time for the packets until they are transmitted
-        self.total_delay[self.first_in_queue] = currentTime - self.arrivalVector[self.first_in_queue]
-        self.departureVector[self.first_in_queue] = currentTime             
-        self.first_in_queue = self.first_in_queue + 1
-        self.trasmisson_delay[self.first_in_queue] = 1
-
-    def packet_arrival_saturated(self, currentTime):
-        """
-        A packet arrives at queue Q2
-        """
-        self.packet_nrSat =  self.packet_nrSat + 1
-        self.arrivalVectorSat[self.packet_nrSat] = currentTime
-        self.queueSizeSat[currentTime] = self.queueSizeSat[currentTime] + 1
-        return self.queueSizeSat[currentTime]
-
+        self.Q1 = self.Q1 - 1
+        
+    
     def packet_departure_saturated(self, rate2, currentTime):
-        self.queueSizeSat[currentTime] = self.queueSizeSat[currentTime] - 1
-        self.departureSat[self.packet_nrSat] = currentTime
-        self.total_delaySat[self.first_in_queueSat] = currentTime - self.arrivalVectorSat[self.first_in_queueSat]
-        self.first_in_queueSat = self.first_in_queueSat + 1
+        self.Q2 = self.Q2 - 1
+        
         
     def reset(self, simulation_time):
         self.queueSizeBur = np.arange(1,simulation_time+2)*0
