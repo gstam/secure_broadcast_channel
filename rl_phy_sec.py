@@ -4,13 +4,12 @@
 # Reward function: function f
 # from google.colab import files
 
-import pdb
+
 import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from  statistics import mean
 from datetime import datetime
 
 
@@ -96,7 +95,7 @@ class Environment():
     
     # Probability that D1 will successfuly decode the packet sent by Q1. The computation depends on whether Q2 transmits or not.
     def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2):
-        power2 = self.P_max - power1
+        power2 = 30# self.P_max - power1
         if W_tx_Q2 == True: # extra interference due to Q2's transmission
             Pr_suc_rx_Q1_to_D1 = np.exp((-(self.threshold1 * self.distance1**self.PathLoss)/(power1 - self.threshold1 * power2))*(1 + self.power_J*self.g**2)) 
         else: 
@@ -106,7 +105,7 @@ class Environment():
     
     # Probability that D2 will successfuly decode the packet sent by Q2. The computation depends on whether Q1 transmits or not.
     def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1):
-        power2 = self.P_max - power1
+        power2 = 30 #self.P_max - power1
         if W_tx_Q1 == True:       # Jamming
             Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/(power1 - self.threshold2*power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
         else:                           # No jamming
@@ -115,7 +114,7 @@ class Environment():
 
     # Probability that D2 will successfuly decode the packet sent by Q1. This is the secrecy violation scenario!
     def get_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
-        power2 = self.P_max - power1
+        power2 = 30#self.P_max - power1
         if W_tx_Q2 == True:
             Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
         else:
@@ -175,9 +174,9 @@ class Environment():
         # Calculate Reward : Reward is provided only if 
         if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2 and (not w_suc_rx_Q1_to_D2):
             reward = 1
-        if W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2):
-            reward = 0
-        if W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
+        elif W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2):
+            reward = 1
+        elif W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
             reward = 0
         else:
             reward = 0
@@ -406,13 +405,13 @@ def policy_plot(actor_model):
     plt.xlabel('state')
     plt.ylabel('action')
     plt.ylim([55, 164])
-    plt.show()
-    plt.savefig()
+    # plt.show()
+    plt.savefig('policy.png')
     
 
 if __name__ == '__main__':
     # pdb.set_trace()
-    lambda_v = 0.8
+    lambda_v = 0.5
     Pr_arrival_Q1 = lambda_v
     B_threshold = 100 # queue capacity
     capacity_Q1 = B_threshold
@@ -425,16 +424,16 @@ if __name__ == '__main__':
     power_max = 200 
     power_J = 5 #199.99
     g = 0.008735
-    q1 = 1 #0.8
+    q1 = 1. #0.8
     q2 = 1.
     P_max = 200
 
     episodes = 1
-    episode_duration = 5000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
+    episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
 
     print_loss = False
-    print_reward = True
-    print_action = True
+    print_reward = False
+    print_action = False
         
     env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max)
 
