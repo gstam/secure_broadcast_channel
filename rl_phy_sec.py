@@ -12,48 +12,7 @@ import random
 from  statistics import mean
 from datetime import datetime
 
-SUM_WEIGHTS = 0
-lambda_v = 0.4
-PathLoss = 2.2
-threshold1 = 0.379433
-threshold2 = 0.225893
-distance1 = 8.2
-distance2 = 14.6
-distance3 = 10
-power_max = 200 
-power_J = 5 #199.99
-g = 0.008735
-B_threshold = 100 # queue capacity
-q1 = 1 #0.8
-q2 = 0.8
-P_max = 200
-timeslot_duration = 1 
-delta_1 = 1 
-delta_2 = -9  
-d_ub = 5 
 
-# Fix the global variables
-CURRENT_TIME = 1
-timeslot = 1 ################## I added this line
-PREVIOUS_PACKET_INDEX = 0
-CURRENT_PACKET_INDEX = 0
-
-delay_less_than_dub_packet_counter = 0
-delay_more_than_dub_packet_counter = 0
-
-simulation_time_reduced = 100000 # change this also in SecureEnv class
-# np.zeros array will have episodes number of element, indexing from 0 to episodes-1 
-# mean_reward_per_episode = np.zeros(episodes)
-
-packet_delay_threshold = 20 #40 #for TIN-TIN in seconds
-
-episodes = 3
-max_time = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
-# Weights-> w_0: f, w_2: saturated queue throughput, w_3: size of queue
-reward_weights = [1, 1, 1]
-print_loss = False
-print_reward = True
-print_action = True
 #def check_stability(lambda_v, rate):
 #    if lambda_v > rate:
 #        raise ValueError('Choose another transmission power')
@@ -269,7 +228,8 @@ class BernoulliArrivalProcess():
 
 class Environment():
         
-    def __init__(self, capacity, Pr_arrival_Q1):
+    def __init__(self, capacity, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2, 
+                    distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max):
         # Queue with Bernoulli arrivals and finite capacity.
         self.Q1 = Queue(capacity)
         self.Pr_arrival_Q1 = Pr_arrival_Q1
@@ -278,29 +238,22 @@ class Environment():
         self.Q2 = Queue(capacity=1)
         self.Pr_arrival_Q2 = 1.
 
-        # The environment is stochastic, so lots of probabilities...
-        q1 = 1.0 #0.8
-        q2 = 0.9
         self.Pr_tx_Q1 = q1
         self.Pr_tx_Q2 = q2
-        self.lambda_v = 0.4
-        self.PathLoss = 2.2
-        self.threshold1 = 0.379433
-        self.threshold2 = 0.225893
-        self.distance1 = 8.2
-        self.distance2 = 14.6
-        self.distance3 = 10
-        self.power_max = 200 
-        self.power_J = 5 #199.99
-        self.g = 0.008735
-        self.B_threshold = 100 # queue capacity
-        self.q1 = 1 #0.8
-        self.q2 = 0.8
-        self.P_max = 200
-        self.timeslot_duration = 1 
-        self.delta_1 = 1 
-        self.delta_2 = -9  
-        d_ub = 5 
+        self.lambda_v = lambda_v
+        self.PathLoss = PathLoss
+        self.threshold1 = threshold1
+        self.threshold2 =threshold2
+        self.distance1 = distance1
+        self.distance2 = distance2
+        self.distance3 = distance3
+        self.power_max = power_max 
+        self.power_J = power_J #199.99
+        self.g = g
+        self.q1 = q1 #0.8
+        self.q2 = q2
+        self.P_max = P_max
+
         # The following probabilities should be functions of the environment's parameters.
         # self.Pr_suc_rx_Q1_to_D1 = Pr_suc_rx_Q1_to_D1
         # self.Pr_suc_rx_Q2_to_D2 = Pr_suc_rx_Q2_to_D2
@@ -565,7 +518,7 @@ def get_critic():
 
     return model
 
-def policy(state, noise_object, noise_scale_factor):
+def policy(state, noise_object, noise_scale_factor, lower_bound, upper_bound):
     # actor_model(state) is a tensor of a value
     # rate_scalar = 0
     # while lambda_v >= rate_scalar: # and rate < 1:
@@ -629,8 +582,33 @@ def policy_plot(actor_model):
     
 
 if __name__ == '__main__':
-    env = Environment()
-    agent = Agent()
+
+    lambda_v = 0.4
+    Pr_arrival_Q1 = lambda_v
+    B_threshold = 100 # queue capacity
+    capacity_Q1 = B_threshold
+    PathLoss = 2.2
+    threshold1 = 0.379433
+    threshold2 = 0.225893
+    distance1 = 8.2
+    distance2 = 14.6
+    distance3 = 10
+    power_max = 200 
+    power_J = 5 #199.99
+    g = 0.008735
+    q1 = 1 #0.8
+    q2 = 0.8
+    P_max = 200
+
+
+    episodes = 1
+    episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
+
+    print_loss = False
+    print_reward = True
+    print_action = True
+        
+    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max)
 
     lower_bound = (threshold1 / (1 + threshold1))*P_max
     upper_bound = (1/(1 + threshold2))*P_max
@@ -680,6 +658,7 @@ if __name__ == '__main__':
     noise_scale_factor = (upper_bound - lower_bound)/noise_denominator  
     
     for episode in range(1, episodes+1):
+        total_episode_reward = 0
         state = env.reset()
         CURRENT_TIME = 1
         # print(f'Episode: {episode}')
@@ -695,7 +674,7 @@ if __name__ == '__main__':
             tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
             # Choose action given a policy.
             action = policy(tf_state, ou_noise, noise_scale_factor)
-            next_state, timeslot_reward, average_packet_delay = agent.step(env, action)
+            next_state, timeslot_reward, average_packet_delay = env.step(action)
             total_episode_reward += timeslot_reward
 
             # Buffer management and learning
@@ -721,7 +700,7 @@ if __name__ == '__main__':
             # if CURRENT_TIME % 1000 == 0:
             #     print(f'Timeslot: {CURRENT_TIME} \t Accumulated Episode Reward: {total_episode_reward}')
             # Check if end of episode        
-            if timeslot >= max_time:
+            if timeslot >= episode_duration:
                 # print('End of episode:', CURRENT_TIME)
                 print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward}')
                 policy_plot(actor_model)  
