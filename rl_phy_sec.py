@@ -9,185 +9,12 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
-import random
 from datetime import datetime
+from .bernouli_process import Bernouli_process
+from .queue import Queue
+from .environment import environment
 
 
-
-class Queue():
-    def __init__(self, capacity):
-        self.backlog = 0
-        self.capacity = capacity
-
-    def get_backlog(self):
-        return self.backlog
-    
-    def get_capacity(self):
-        return self.capacity
-    
-    def set_backlog(self, backlog):
-        self.backlog = backlog
-    
-    def set_capacity(self, capacity):
-        self.capacity = capacity
-    
-    def packet_arrival(self):
-        if self.backlog < self.capacity:
-            self.backlog = self.backlog + 1
-
-    def packet_departure(self):
-        self.backlog = self.backlog - 1
-        
-    def reset(self):
-        self.backlog = 0
-
-class BernoulliArrivalProcess():
-    
-    def init(self, success_probability):
-        self.success_probability = success_probability
-    
-    def set_success_probability(self, success_probability):
-        self.success_probability = success_probability
-        
-    def get_success_probability(self):
-        return self.success_probability
-    
-    def generate_event(self):
-        if np.random.default_rng().uniform(0., 1., 1) < self.success_probability:
-            success = True
-        else:
-            success = False
-        return success 
-
-
-class Environment():
-        
-    def __init__(self, capacity, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2, 
-                    distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max):
-        # Queue with Bernoulli arrivals and finite capacity.
-        self.Q1 = Queue(capacity)
-        self.Pr_arrival_Q1 = Pr_arrival_Q1
-        
-        # Saturated queue: It has a capacity of 1  but it never gets empty because we have a probability of 1 to get fresh arrival at each timeslot
-        self.Q2 = Queue(capacity=1)
-        self.Pr_arrival_Q2 = 1.
-
-        self.Pr_tx_Q1 = q1
-        self.Pr_tx_Q2 = q2
-        self.lambda_v = lambda_v
-        self.PathLoss = PathLoss
-        self.threshold1 = threshold1
-        self.threshold2 =threshold2
-        self.distance1 = distance1
-        self.distance2 = distance2
-        self.distance3 = distance3
-        self.power_max = power_max 
-        self.power_J = power_J #199.99
-        self.g = g
-        self.q1 = q1 #0.8
-        self.q2 = q2
-        self.P_max = P_max
-
-        # The following probabilities should be functions of the environment's parameters.
-        # self.Pr_suc_rx_Q1_to_D1 = Pr_suc_rx_Q1_to_D1
-        # self.Pr_suc_rx_Q2_to_D2 = Pr_suc_rx_Q2_to_D2
-        # self.Pr_suc_rx_Q1_to_D2 = Pr_suc_rx_Q1_to_D2 # Security constraint violation!
-    
-    # Probability that D1 will successfuly decode the packet sent by Q1. The computation depends on whether Q2 transmits or not.
-    def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2):
-        power2 = 30# self.P_max - power1
-        if W_tx_Q2 == True: # extra interference due to Q2's transmission
-            Pr_suc_rx_Q1_to_D1 = np.exp((-(self.threshold1 * self.distance1**self.PathLoss)/(power1 - self.threshold1 * power2))*(1 + self.power_J*self.g**2)) 
-        else: 
-            Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss)/power1)*(1 + self.power_J*self.g**2)) 
-   
-        return Pr_suc_rx_Q1_to_D1
-    
-    # Probability that D2 will successfuly decode the packet sent by Q2. The computation depends on whether Q1 transmits or not.
-    def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1):
-        power2 = 30 #self.P_max - power1
-        if W_tx_Q1 == True:       # Jamming
-            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/(power1 - self.threshold2*power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
-        else:                           # No jamming
-            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss)/power2) 
-        return Pr_suc_rx_Q2_to_D2
-
-    # Probability that D2 will successfuly decode the packet sent by Q1. This is the secrecy violation scenario!
-    def get_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
-        power2 = 30#self.P_max - power1
-        if W_tx_Q2 == True:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
-        else:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss)/(power1))*(1 + self.threshold1*(self.power_J/(power1))*(self.distance2/self.distance3)**self.PathLoss)**(-1)
-        return Pr_suc_rx_Q1_to_D2
-
-    def step(self, power1):
-        # Get random transmissions from Q1 and Q2
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        W_tx_Q1 = False
-        if self.Q1.backlog > 0 and rnd < self.Pr_tx_Q1:
-                W_tx_Q1 = True
-            
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        W_tx_Q2 = False
-        if rnd < self.Pr_tx_Q2:
-            W_tx_Q2 = True
-        
-        # Calculate probabilities to have a  successful reception at the destinations and the 
-        # potential violation of the security constraint.
-        Pr_suc_rx_Q1_to_D1 = .0
-        Pr_suc_rx_Q1_to_D2 = .0
-        if W_tx_Q1 == True:
-            Pr_suc_rx_Q1_to_D1 = self.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2)
-            Pr_suc_rx_Q1_to_D2 = self.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)
-        
-        Pr_suc_rx_Q2_to_D2 = .0
-        if W_tx_Q2 == True:
-            Pr_suc_rx_Q2_to_D2 = self.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1)
-
-        # Realization of the transmissions' outcomes and reward calculation
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        
-        w_suc_rx_Q1_to_D1 = False
-        if rnd < Pr_suc_rx_Q1_to_D1:
-            w_suc_rx_Q1_to_D1 = True
-            
-        w_suc_rx_Q2_to_D2 = False
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        if rnd < Pr_suc_rx_Q2_to_D2:
-            w_suc_rx_Q2_to_D2 = True
-
-        w_suc_rx_Q1_to_D2 = False            
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        if rnd < Pr_suc_rx_Q1_to_D2:
-            w_suc_rx_Q1_to_D2 = True
-        
-        # Update state after successfull transmission.
-        if w_suc_rx_Q1_to_D1:
-            self.Q1.packet_departure()
-        
-        # Late arrivals at Q1
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        if rnd < self.Pr_arrival_Q1:
-            self.Q1.packet_arrival()
-
-        # Calculate Reward : Reward is provided only if 
-        if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2 and (not w_suc_rx_Q1_to_D2):
-            reward = 1
-        elif W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2):
-            reward = 1
-        elif W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
-            reward = 0
-        else:
-            reward = 0
-
-        new_state = self.Q1.get_backlog()
-        
-        return reward, new_state
-
-    def reset(self):
-        self.Q1.set_backlog(0)
-        return self.Q1.get_backlog()
                 
 class OUActionNoise:    
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
@@ -392,8 +219,8 @@ def policy(state, noise_object, noise_scale_factor, lower_bound, upper_bound):
 #global CURRENT_PACKET_INDEX # this is the index for the timeslot that just finished
 #global CURRENT_TIME #this is the current running second in time
 
-def policy_plot(actor_model):
-    state_list = [s for s in range(B_threshold)]
+def policy_plot(actor_model, capacity_Q1, lower_bound, upper_bound):
+    state_list = [s for s in range(capacity_Q1)]
     action_list = []
     for state in range(B_threshold):
         tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
@@ -404,31 +231,30 @@ def policy_plot(actor_model):
     plt.scatter(state_list, action_list)
     plt.xlabel('state')
     plt.ylabel('action')
-    plt.ylim([55, 164])
+    plt.ylim([lower_bound, upper_bound])
     # plt.show()
     plt.savefig('policy.png')
     
 
 if __name__ == '__main__':
-    # pdb.set_trace()
     lambda_v = 0.5
     Pr_arrival_Q1 = lambda_v
-    B_threshold = 100 # queue capacity
+    B_threshold = 1 # queue capacity
     capacity_Q1 = B_threshold
     PathLoss = 2.2
-    threshold1 = 0.379433
-    threshold2 = 0.225893
-    distance1 = 8.2
-    distance2 = 14.6
-    distance3 = 10
+    threshold1 = 0.2 #0.379433
+    threshold2 = 0.2 #0.225893
+    distance1 = 10 #8.2
+    distance2 = 10 #14.6
+    distance3 = 2
     power_max = 200 
-    power_J = 5 #199.99
-    g = 0.008735
+    power_J = 10 #199.99
+    g = 0.1 #0.008735
     q1 = 1. #0.8
     q2 = 1.
     P_max = 200
 
-    episodes = 1
+    episodes = 10
     episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
 
     print_loss = False
@@ -437,13 +263,13 @@ if __name__ == '__main__':
         
     env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max)
 
-    lower_bound = (threshold1 / (1 + threshold1))*P_max
-    upper_bound = (1/(1 + threshold2))*P_max
+    lower_bound = 0 #(threshold1 / (1 + threshold1))*P_max
+    upper_bound = P_max # (1/(1 + threshold2))*P_max
 
     num_states = 1 # the state is the queue size
     num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-    std_dev = 0.2
+    std_dev = 1.0 # 0.2
     ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
 
     actor_model = get_actor()
@@ -465,7 +291,7 @@ if __name__ == '__main__':
     # target_critic.load_weights("tx_power_target_critic.h5")
 
     # Learning rate for actor-critic models
-    critic_lr = 0.002 #10**(-4) #0.002
+    critic_lr = 0.001 #10**(-4) #0.002
     actor_lr = 0.001  #10**(-3) #0.001
 
     critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
@@ -481,7 +307,7 @@ if __name__ == '__main__':
     log_file_name = 'training_logfile.csv'
     log_file = open(log_file_name, "w") #
     log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
-    noise_denominator = 10.
+    noise_denominator = 1.
     noise_scale_factor = (upper_bound - lower_bound)/noise_denominator  
     
     for episode in range(1, episodes+1):
@@ -490,49 +316,36 @@ if __name__ == '__main__':
         # print(f'Episode: {episode}')
         timeslot = 0
 
-        if episode % 10 == 0 and noise_denominator <= 128:
+        if episode % 2 == 0 and noise_denominator <= 128:
             noise_denominator *= 2
             noise_scale_factor = (upper_bound - lower_bound)/noise_denominator  
             print(f'Noise_denominator: {noise_denominator}')
         
         while timeslot <= episode_duration:  #average_packet_delay < packet_delay_threshold:
-            
             tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-            # Choose action given a policy.
             action = policy(tf_state, ou_noise, noise_scale_factor, lower_bound, upper_bound)
-            # Get next state and reward
-            reward, next_state= env.step(action)
+            reward, next_state = env.step(action)
             total_episode_reward += reward
 
             # Buffer management and learning
-            if timeslot % 200 == 0:
-              print_action = True
-              print_loss = False
-              print_reward = False
-            else:
-              print_action = False
-              print_loss = False
-              print_reward = False
-
             buffer.record((state, action, reward, next_state))
             buffer.learn()
             update_target(target_actor.variables, actor_model.variables, tau)
             update_target(target_critic.variables, critic_model.variables, tau)
 
             # Data logging
-            print(f'{episode};{timeslot};{state};{action};{reward};{next_state}\n')
+            if timeslot % 10 == 0:
+                print(f'Episode: {episode} \t Timeslot: {timeslot} \t State: {state} \t Action: {action} \t Reward: {reward} \t Next State: {next_state}\n')
             log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state}\n')        
             
             state = next_state
             timeslot += 1            
-        
         # print('End of episode:', CURRENT_TIME)
+        policy_plot(actor_model, env.Q1.capacity, lower_bound, upper_bound)  
         print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward}')
-        # policy_plot(actor_model)  
-        # break
 
+    policy_plot(actor_model, env.Q1.capacity, lower_bound, upper_bound)  
     log_file.close()
-
     actor_model.save_weights("tx_power_actor.h5")
     critic_model.save_weights("tx_power_critic.h5")
 
