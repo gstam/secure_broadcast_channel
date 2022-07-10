@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from environment import Environment
 
 if __name__ == '__main__':
-    lambda_v = 0.5
+    lambda_v = 1.
     Pr_arrival_Q1 = lambda_v
     B_threshold = 1 # queue capacity
     capacity_Q1 = B_threshold
@@ -14,7 +14,7 @@ if __name__ == '__main__':
     distance2 = 10 #14.6
     distance3 = 5
     power_max = 200 
-    power_J = 10 #199.99
+    power_J = 50 #199.99
     g = 0.1 #0.008735
     q1 = 1. #0.8
     q2 = 1.

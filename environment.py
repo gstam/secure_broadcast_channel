@@ -1,7 +1,8 @@
 import numpy as np
-from queue import Queue
+from fifo_queue import Queue
+
 class Environment():
-        
+
     def __init__(self, capacity, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2, 
                     distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max):
         # Queue with Bernoulli arrivals and finite capacity.
@@ -114,9 +115,9 @@ class Environment():
         secrecy_reward = .0
         # Calculate Reward : Reward is provided only if 
         if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2 and (not w_suc_rx_Q1_to_D2):
-            secrecy_reward = 10.
+            secrecy_reward = 1.
         elif W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2):
-            secrecy_reward = 10.
+            secrecy_reward = 1.
         elif W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
             secrecy_reward = 1.
         else:

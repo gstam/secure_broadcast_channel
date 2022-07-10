@@ -9,10 +9,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime
-from .bernouli_process import Bernouli_process
-from .queue import Queue
-from .environment import environment
+from environment import Environment
 
 
                 
@@ -220,9 +217,9 @@ def policy(state, noise_object, noise_scale_factor, lower_bound, upper_bound):
 #global CURRENT_TIME #this is the current running second in time
 
 def policy_plot(actor_model, capacity_Q1, lower_bound, upper_bound):
-    state_list = [s for s in range(capacity_Q1)]
+    state_list = [s for s in range(capacity_Q1+1)]
     action_list = []
-    for state in range(B_threshold):
+    for state in range(capacity_Q1+1):
         tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
         raw_action = tf.squeeze(actor_model(tf_state)) # range [-1, 1]
         action = (lower_bound + 1e-06) + ((raw_action.numpy()+1.)/2.)*(upper_bound - lower_bound)
@@ -231,13 +228,15 @@ def policy_plot(actor_model, capacity_Q1, lower_bound, upper_bound):
     plt.scatter(state_list, action_list)
     plt.xlabel('state')
     plt.ylabel('action')
+    plt.xlim([-1, 2])
     plt.ylim([lower_bound, upper_bound])
     # plt.show()
     plt.savefig('policy.png')
+    plt.close()
     
 
 if __name__ == '__main__':
-    lambda_v = 0.5
+    lambda_v = 1.0
     Pr_arrival_Q1 = lambda_v
     B_threshold = 1 # queue capacity
     capacity_Q1 = B_threshold
@@ -246,9 +245,9 @@ if __name__ == '__main__':
     threshold2 = 0.2 #0.225893
     distance1 = 10 #8.2
     distance2 = 10 #14.6
-    distance3 = 2
+    distance3 = 5
     power_max = 200 
-    power_J = 10 #199.99
+    power_J = 50 #199.99
     g = 0.1 #0.008735
     q1 = 1. #0.8
     q2 = 1.
@@ -263,8 +262,8 @@ if __name__ == '__main__':
         
     env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max)
 
-    lower_bound = 0 #(threshold1 / (1 + threshold1))*P_max
-    upper_bound = P_max # (1/(1 + threshold2))*P_max
+    lower_bound = (threshold1 / (1 + threshold1))*P_max
+    upper_bound = (1/(1 + threshold2))*P_max
 
     num_states = 1 # the state is the queue size
     num_actions = 1 # the action is the transmission power for packets from queue Q1 
