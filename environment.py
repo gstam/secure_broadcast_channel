@@ -60,7 +60,7 @@ class Environment():
         if W_tx_Q2 == True:
             Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
         else:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1) * (1 + self.threshold1*(self.power_J/(power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
+            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1) * (1 + self.threshold1*(self.power_J/(power1)))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
         return Pr_suc_rx_Q1_to_D2
 
     def step(self, power1):
