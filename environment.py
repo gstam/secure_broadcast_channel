@@ -3,7 +3,7 @@ from fifo_queue import Queue
 
 class Environment():
 
-    def __init__(self, capacity, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2, 
+    def __init__(self, capacity, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, 
                     distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max):
         # Queue with Bernoulli arrivals and finite capacity.
         self.Q1 = Queue(capacity)
@@ -16,7 +16,8 @@ class Environment():
         self.Pr_tx_Q1 = q1
         self.Pr_tx_Q2 = q2
         self.lambda_v = lambda_v
-        self.PathLoss = PathLoss
+        self.PathLoss_to_D1 = PathLoss_to_D1
+        self.PathLoss_to_D2 = PathLoss_to_D2
         self.threshold1 = threshold1
         self.threshold2 =threshold2
         self.distance1 = distance1
@@ -38,9 +39,9 @@ class Environment():
     def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2):
         power2 = self.P_max - power1 
         if W_tx_Q2 == True: # extra interference due to Q2's transmission
-            Pr_suc_rx_Q1_to_D1 = np.exp((-(self.threshold1 * self.distance1**self.PathLoss)/(power1 - self.threshold1 * power2))*(1 + self.power_J*self.g**2)) 
+            Pr_suc_rx_Q1_to_D1 = np.exp((-(self.threshold1 * self.distance1**self.PathLoss_to_D1)/(power1 - self.threshold1 * power2))*(1 + self.power_J*self.g**2)) 
         else: 
-            Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss)/power1)*(1 + self.power_J*self.g**2)) 
+            Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss_to_D1)/power1)*(1 + self.power_J*self.g**2)) 
    
         return Pr_suc_rx_Q1_to_D1
     
@@ -48,18 +49,18 @@ class Environment():
     def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1):
         power2 = self.P_max - power1 
         if W_tx_Q1 == True:       # Jammingself.PathLoss
-            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**3)/(power1 - self.threshold2*power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**3)**(-1)
+            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold2*power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
         else:                           # No jamming
-            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**3)/power2) 
+            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/power2) 
         return Pr_suc_rx_Q2_to_D2
 
     # Probability that D2 will successfuly decode the packet sent by Q1. This is the secrecy violation scenario!
     def get_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
         power2 = self.P_max - power1 
         if W_tx_Q2 == True:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**3)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**3)**(-1)
+            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
         else:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**3)/(power1))*(1 + self.threshold1*(self.power_J/(power1))*(self.distance2/self.distance3)**3)**(-1)
+            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1))*(1 + self.threshold1*(self.power_J/(power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
         return Pr_suc_rx_Q1_to_D2
 
     def step(self, power1):
