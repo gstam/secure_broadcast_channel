@@ -30,14 +30,19 @@ class Environment():
         self.q2 = q2
         self.P_max = P_max
 
+        self.lower_bound = (self.threshold1 / (1 + self.threshold1))*self.P_max
+        self.upper_bound = (1/(1 + self.threshold2))*self.P_max
+        
         # The following probabilities should be functions of the environment's parameters.
         # self.Pr_suc_rx_Q1_to_D1 = Pr_suc_rx_Q1_to_D1
         # self.Pr_suc_rx_Q2_to_D2 = Pr_suc_rx_Q2_to_D2
         # self.Pr_suc_rx_Q1_to_D2 = Pr_suc_rx_Q1_to_D2 # Security constraint violation!
-    
+    def _calculate_Q2_tx_power(self, power):
+        return self.P_max - power #np.maximum(np.minimum( (self.P_max - power), self.upper_bound ), self.lower_bound)
+
     # Probability that D1 will successfuly decode the packet sent by Q1. The computation depends on whether Q2 transmits or not.
     def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2):
-        power2 = self.P_max - power1 
+        power2 = self._calculate_Q2_tx_power(power1)
         if W_tx_Q2 == True: # extra interference due to Q2's transmission
             Pr_suc_rx_Q1_to_D1 = np.exp((-(self.threshold1 * self.distance1**self.PathLoss_to_D1)/(power1 - self.threshold1 * power2))*(1 + self.power_J*self.g**2)) 
         else: 
@@ -47,7 +52,7 @@ class Environment():
     
     # Probability that D2 will successfuly decode the packet sent by Q2. The computation depends on whether Q1 transmits or not.
     def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1):
-        power2 = self.P_max - power1 
+        power2 = self._calculate_Q2_tx_power(power1)
         if W_tx_Q1 == True:       # Jammingself.PathLoss
             Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold2*power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
         else:                           # No jamming
@@ -56,7 +61,7 @@ class Environment():
 
     # Probability that D2 will successfuly decode the packet sent by Q1. This is the secrecy violation scenario!
     def get_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
-        power2 = self.P_max - power1 
+        power2 = self._calculate_Q2_tx_power(power1)
         if W_tx_Q2 == True:
             Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
         else:

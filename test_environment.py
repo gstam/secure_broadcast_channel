@@ -47,11 +47,11 @@ def plot_reward_probability(lower_bound, upper_bound):
 if __name__ == '__main__':
     lambda_v = 1.
     Pr_arrival_Q1 = lambda_v
-    B_threshold = 1 # queue capacity
+    B_threshold = 10 # queue capacity
     capacity_Q1 = B_threshold
     PathLoss_to_D1 = 2.2
-    PathLoss_to_D2 = 3.2
-    threshold1 = .6 #0.379433
+    PathLoss_to_D2 = 2.2
+    threshold1 = .3 #0.379433
     threshold2 = .2 #0.225893
     distance1 = 10 #8.2
     distance2 = 10 #14.6
