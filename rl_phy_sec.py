@@ -41,7 +41,7 @@ class OUActionNoise:
             self.x_prev = np.zeros_like(self.mean)
 
 class Buffer:
-    def __init__(self, buffer_capacity=100000, batch_size=64):
+    def __init__(self, num_states, num_actions, buffer_capacity=100000, batch_size=64):
         # Number of "experiences" to store at max
         self.buffer_capacity = buffer_capacity
         # Num of tuples to train on.
@@ -133,7 +133,7 @@ def update_target(target_weights, weights, tau):
     for (a, b) in zip(target_weights, weights):
         a.assign(b * tau + a * (1 - tau))
 
-def get_actor():
+def get_actor(num_states):
     # Initialize weights
     last_init = tf.random_uniform_initializer(minval=-1.0, maxval=1.0) #(minval=-0.01, maxval=0.2)
     inputs = layers.Input(shape=(num_states,))
@@ -147,7 +147,7 @@ def get_actor():
     model = tf.keras.Model(inputs, outputs)
     return model
 
-def get_critic():
+def get_critic(num_states, num_actions):
     # State as input
     state_input = layers.Input(shape=(num_states))
     state_out = layers.Dense(16, activation="relu")(state_input)
@@ -216,24 +216,7 @@ def policy(state, noise_object, noise_scale_factor, lower_bound, upper_bound):
 #global CURRENT_PACKET_INDEX # this is the index for the timeslot that just finished
 #global CURRENT_TIME #this is the current running second in time
 
-def policy_plot(actor_model, capacity_Q1, lower_bound, upper_bound):
-    state_list = [s for s in range(capacity_Q1+1)]
-    action_list = []
-    for state in range(capacity_Q1+1):
-        tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-        raw_action = tf.squeeze(actor_model(tf_state)) # range [-1, 1]
-        action = (lower_bound + 1e-06) + ((raw_action.numpy()+1.)/2.)*(upper_bound - lower_bound)
-        action_list.append(action)
-    
-    plt.bar(state_list, action_list)
-    plt.xlabel('state')
-    plt.ylabel('action')
-    plt.xlim([-1, 2])
-    plt.ylim([lower_bound, upper_bound])
-    # plt.show()
-    plt.savefig('policy.png')
-    plt.close()
-    
+
 
 if __name__ == '__main__':
     lambda_v = 1.0
@@ -254,8 +237,8 @@ if __name__ == '__main__':
     q2 = 1.
     P_max = 200
 
-    episodes = 10
-    episode_duration = 5000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
+    episodes = 100
+    episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
 
     print_loss = False
     print_reward = False
@@ -272,11 +255,11 @@ if __name__ == '__main__':
     std_dev = 1.0 # 0.2
     ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
 
-    actor_model = get_actor()
-    critic_model = get_critic()
+    actor_model = get_actor(num_states)
+    critic_model = get_critic(num_states, num_actions)
 
-    target_actor = get_actor()
-    target_critic = get_critic()
+    target_actor = get_actor(num_states)
+    target_critic = get_critic(num_states, num_actions)
    
 
     # Making the weights equal initially
@@ -284,13 +267,12 @@ if __name__ == '__main__':
     target_critic.set_weights(critic_model.get_weights())
 
     # Remove comment to load weights from previous runs.
-    actor_model.load_weights("tx_power_actor.h5")
-    critic_model.load_weights("tx_power_critic.h5")
+    # actor_model.load_weights("tx_power_actor.h5")
+    # critic_model.load_weights("tx_power_critic.h5")
 
-    target_actor.load_weights("tx_power_target_actor.h5")
-    target_critic.load_weights("tx_power_target_critic.h5")
+    # target_actor.load_weights("tx_power_target_actor.h5")
+    # target_critic.load_weights("tx_power_target_critic.h5")
 
-    policy_plot(actor_model, capacity_Q1, lower_bound, upper_bound)
     # Learning rate for actor-critic models
     critic_lr = 0.001 #10**(-4) #0.002
     actor_lr = 0.001  #10**(-3) #0.001
@@ -303,7 +285,7 @@ if __name__ == '__main__':
     # Used to update target networks
     tau = 0.005 
 
-    buffer = Buffer(50000, 64)
+    buffer = Buffer(num_states, num_actions,50000, 64)
     
     log_file_name = 'training_logfile.csv'
     log_file = open(log_file_name, "w") #
@@ -335,17 +317,14 @@ if __name__ == '__main__':
             update_target(target_critic.variables, critic_model.variables, tau)
 
             # Data logging
-            if timeslot % 200 == 0:
-                print(f'Episode: {episode} \t Timeslot: {timeslot} \t State: {state} \t Action: {action} \t Reward: {reward} \t Next State: {next_state}\n')
+            # if timeslot % 200 == 0:
+            #     print(f'Episode: {episode} \t Timeslot: {timeslot} \t State: {state} \t Action: {action} \t Reward: {reward} \t Next State: {next_state}\n')
             log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state}\n')        
             
             state = next_state
             timeslot += 1            
-        # print('End of episode:', CURRENT_TIME)
-        policy_plot(actor_model, env.Q1.capacity, lower_bound, upper_bound)  
         print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward}')
 
-    policy_plot(actor_model, env.Q1.capacity, lower_bound, upper_bound)  
     log_file.close()
     actor_model.save_weights("tx_power_actor.h5")
     critic_model.save_weights("tx_power_critic.h5")

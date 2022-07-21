@@ -32,7 +32,9 @@ class Environment():
 
         self.lower_bound = (self.threshold1 / (1 + self.threshold1))*self.P_max
         self.upper_bound = (1/(1 + self.threshold2))*self.P_max
-        
+
+        self.state = [0, 0]
+
         # Statistics
         self.timer = 1
         self.reward_interval = 100
@@ -83,19 +85,50 @@ class Environment():
             Pr_suc_rx_Q1_to_D2 = .0
         return Pr_suc_rx_Q1_to_D2
 
-    def step(self, power1):
+    
+    def compute_reward(self, W_tx_Q1, W_tx_Q2, w_suc_rx_Q1_to_D1, w_suc_rx_Q2_to_D2, w_suc_rx_Q1_to_D2):
+        reward = .0
+        if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2: #and (not w_suc_rx_Q1_to_D2):
+            reward = 1.
+        elif W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1: # and (not w_suc_rx_Q1_to_D2):
+            reward = 1.
+        elif W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
+            reward = 1.
+        else:
+            reward = .0
+        
+        # Reinforce empty Q1
+        if self.Q1.backlog == 0:
+            reward += 1
+        
+        # Reinforce the secrecy constraint.
+        if W_tx_Q1 == True and not w_suc_rx_Q1_to_D2:
+            reward += 1
+        
+        return reward
+
+    def compute_next_state(self):
         # Get random transmissions from Q1 and Q2
         rnd = np.random.default_rng().uniform(0., 1., 1)
         W_tx_Q1 = False
         if self.Q1.backlog > 0 and rnd < self.Pr_tx_Q1:
-                W_tx_Q1 = True
+            W_tx_Q1 = True
             
         rnd = np.random.default_rng().uniform(0., 1., 1)
         W_tx_Q2 = False
         if rnd < self.Pr_tx_Q2:
             W_tx_Q2 = True
         
-        # Calculate probabilities to have a  successful reception at the destinations and the 
+        self.state[0] = W_tx_Q1
+        self.state[1] = W_tx_Q2
+        return 0
+
+    
+    def step(self, power1):
+        W_tx_Q1 = self.state[0]
+        W_tx_Q2 = self.state[1]
+
+        # Calculate probabilities to have a successful reception at the destinations and the 
         # potential violation of the security constraint.
         Pr_suc_rx_Q1_to_D1 = .0
         Pr_suc_rx_Q1_to_D2 = .0
@@ -109,7 +142,6 @@ class Environment():
 
         # Realization of the transmissions' outcomes and reward calculation
         rnd = np.random.default_rng().uniform(0., 1., 1)
-        
         w_suc_rx_Q1_to_D1 = False
         if rnd < Pr_suc_rx_Q1_to_D1:
             w_suc_rx_Q1_to_D1 = True
@@ -132,27 +164,18 @@ class Environment():
         rnd = np.random.default_rng().uniform(0., 1., 1)
         if rnd < self.Pr_arrival_Q1:
             self.Q1.packet_arrival()
+            
+        reward = self.compute_reward(W_tx_Q1, W_tx_Q2, w_suc_rx_Q1_to_D1, w_suc_rx_Q2_to_D2, w_suc_rx_Q1_to_D2)
 
-        secrecy_reward = .0
-        # Calculate Reward : Reward is provided only if 
-        if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2: #and (not w_suc_rx_Q1_to_D2):
-            secrecy_reward = 1.
-        elif W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1: # and (not w_suc_rx_Q1_to_D2):
-            secrecy_reward = 1.
-        elif W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
-            secrecy_reward = 1.
-        else:
-            secrecy_reward = .0
+        self.compute_next_state(self) #self.Q1.get_backlog()
+        # if w_suc_rx_Q2_to_D2 == True:
+        #     self.count_packets_Q2_to_D2 += 1
 
-        new_state = self.Q1.get_backlog()
-        if w_suc_rx_Q2_to_D2 == True:
-            self.count_packets_Q2_to_D2 += 1
-
-        if w_suc_rx_Q2_to_D2 == True:
-            self.count_packets_Q2_to_D2 += 1
+        # if w_suc_rx_Q2_to_D2 == True:
+        #     self.count_packets_Q2_to_D2 += 1
         
-        if self.timer % self.reward_interval == 0:
-            rate_reward = self.count_packets_Q2_to_D2/self.reward_interval
+        # if self.timer % self.reward_interval == 0:
+        #     rate_reward = self.count_packets_Q2_to_D2/self.reward_interval
 
         #backlog_reward = 1/(new_state+1)
         #reward = secrecy_reward #+ backlog_reward
@@ -160,5 +183,6 @@ class Environment():
         return reward, new_state
 
     def reset(self):
+        self.state = [0, 0]
         self.Q1.set_backlog(0)
         return self.Q1.get_backlog()
