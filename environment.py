@@ -33,6 +33,12 @@ class Environment():
         self.lower_bound = (self.threshold1 / (1 + self.threshold1))*self.P_max
         self.upper_bound = (1/(1 + self.threshold2))*self.P_max
         
+        # Statistics
+        self.timer = 1
+        self.reward_interval = 100
+        self.count_packets_Q2_to_D2 = 0
+        self.delay_Q1 = []
+
         # The following probabilities should be functions of the environment's parameters.
         # self.Pr_suc_rx_Q1_to_D1 = Pr_suc_rx_Q1_to_D1
         # self.Pr_suc_rx_Q2_to_D2 = Pr_suc_rx_Q2_to_D2
@@ -43,29 +49,38 @@ class Environment():
     # Probability that D1 will successfuly decode the packet sent by Q1. The computation depends on whether Q2 transmits or not.
     def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2):
         power2 = self._calculate_Q2_tx_power(power1)
-        if W_tx_Q2 == True: # extra interference due to Q2's transmission
-            Pr_suc_rx_Q1_to_D1 = np.exp((-(self.threshold1 * self.distance1**self.PathLoss_to_D1)/(power1 - self.threshold1 * power2))*(1 + self.power_J*self.g**2)) 
-        else: 
-            Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss_to_D1)/power1)*(1 + self.power_J*self.g**2)) 
-   
+        if power1 > self.threshold1*power2:
+            # Equation (7) first part (before the multiplication symbol X)
+            if W_tx_Q2 == True:  
+                Pr_suc_rx_Q1_to_D1 = np.exp(-(self.threshold1 * self.distance1**self.PathLoss_to_D1)/(power1 - self.threshold1 * power2) * (1 + self.power_J*self.g**2))
+            else: 
+                Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss_to_D1)/power1) *(1 + self.power_J*self.g**2))#no jamming.
+        else:
+            Pr_suc_rx_Q1_to_D1 = .0
         return Pr_suc_rx_Q1_to_D1
     
     # Probability that D2 will successfuly decode the packet sent by Q2. The computation depends on whether Q1 transmits or not.
     def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1):
         power2 = self._calculate_Q2_tx_power(power1)
-        if W_tx_Q1 == True:       # Jammingself.PathLoss
-            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold2*power1))*(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
-        else:                           # No jamming
-            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/power2) 
+        if power2 > self.threshold2*power1:
+            if W_tx_Q1 == True:       # Jammingself.PathLoss
+                Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/(power2 - self.threshold2*power1))#/(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*((self.distance2/self.distance3)**self.PathLoss_to_D2))
+            else:                           # No jamming
+                Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/power2) 
+        else:
+            Pr_suc_rx_Q2_to_D2 = .0
         return Pr_suc_rx_Q2_to_D2
 
     # Probability that D2 will successfuly decode the packet sent by Q1. This is the secrecy violation scenario!
     def get_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
         power2 = self._calculate_Q2_tx_power(power1)
-        if W_tx_Q2 == True:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold1*power2))*(1 + self.threshold1*(self.power_J/(power1 - self.threshold1*power1))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
+        if power1 > self.threshold1*power2:
+            if W_tx_Q2 == True:
+                Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold1*power2))/(1 + (self.threshold1*self.power_J)/(power1 - self.threshold1*power1)*(self.distance2/self.distance3)**self.PathLoss_to_D2)
+            else:
+                Pr_suc_rx_Q1_to_D2 =  np.exp(-self.threshold2 * self.distance2**self.PathLoss_to_D2/power1)/(1 + self.threshold2*self.power_J/power1*((self.distance2/self.distance3)**self.PathLoss_to_D2))
         else:
-            Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1) * (1 + self.threshold1*(self.power_J/(power1)))*(self.distance2/self.distance3)**self.PathLoss_to_D2)**(-1)
+            Pr_suc_rx_Q1_to_D2 = .0
         return Pr_suc_rx_Q1_to_D2
 
     def step(self, power1):
@@ -120,9 +135,9 @@ class Environment():
 
         secrecy_reward = .0
         # Calculate Reward : Reward is provided only if 
-        if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2): #and w_suc_rx_Q2_to_D2 
+        if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2: #and (not w_suc_rx_Q1_to_D2):
             secrecy_reward = 1.
-        elif W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1 and (not w_suc_rx_Q1_to_D2):
+        elif W_tx_Q1 == True and W_tx_Q2 == False and w_suc_rx_Q1_to_D1: # and (not w_suc_rx_Q1_to_D2):
             secrecy_reward = 1.
         elif W_tx_Q1 == False and W_tx_Q2 == True and w_suc_rx_Q2_to_D2:
             secrecy_reward = 1.
@@ -130,9 +145,18 @@ class Environment():
             secrecy_reward = .0
 
         new_state = self.Q1.get_backlog()
-        backlog_reward = 1/(new_state+1)
+        if w_suc_rx_Q2_to_D2 == True:
+            self.count_packets_Q2_to_D2 += 1
+
+        if w_suc_rx_Q2_to_D2 == True:
+            self.count_packets_Q2_to_D2 += 1
         
-        reward = secrecy_reward #+ backlog_reward
+        if self.timer % self.reward_interval == 0:
+            rate_reward = self.count_packets_Q2_to_D2/self.reward_interval
+
+        #backlog_reward = 1/(new_state+1)
+        #reward = secrecy_reward #+ backlog_reward
+        self.timer += 1
         return reward, new_state
 
     def reset(self):

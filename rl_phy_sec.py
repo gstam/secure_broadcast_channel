@@ -240,7 +240,8 @@ if __name__ == '__main__':
     Pr_arrival_Q1 = lambda_v
     B_threshold = 1 # queue capacity
     capacity_Q1 = B_threshold
-    PathLoss = 2.2
+    PathLoss_to_D1 =2.2
+    PathLoss_to_D2 = 2.2
     threshold1 = 0.2 #0.379433
     threshold2 = 0.2 #0.225893
     distance1 = 10 #8.2
@@ -259,8 +260,8 @@ if __name__ == '__main__':
     print_loss = False
     print_reward = False
     print_action = False
-        
-    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max)
+
+    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max)
 
     lower_bound = (threshold1 / (1 + threshold1))*P_max
     upper_bound = (1/(1 + threshold2))*P_max

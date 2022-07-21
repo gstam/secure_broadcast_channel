@@ -25,9 +25,9 @@ def plot_reward_probability(lower_bound, upper_bound):
                     Pr_suc_rx_Q2_to_D2_list.append(.0)
 
                 if W_tx_Q1 == True and W_tx_Q2 == True:
-                    reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2) * (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)) *env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1))
+                    reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2) * env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1)) #* (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)) 
                 if W_tx_Q1 == True and W_tx_Q2 == False:
-                    reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2) * (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)))
+                    reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2)) #* (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)))
                 if W_tx_Q1 == False and W_tx_Q2 == True:
                     reward_probability.append(env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1))
                 if W_tx_Q1 == False and W_tx_Q2 == False:
@@ -51,14 +51,14 @@ if __name__ == '__main__':
     capacity_Q1 = B_threshold
     PathLoss_to_D1 = 2.2
     PathLoss_to_D2 = 2.2
-    threshold1 = .3 #0.379433
-    threshold2 = .2 #0.225893
+    threshold1 = .1 #0.379433
+    threshold2 = .1 #0.225893
     distance1 = 10 #8.2
-    distance2 = 10 #14.6
-    distance3 = 5
+    distance2 = 11 #14.6
+    distance3 = 11
     power_max = 200 
-    power_J = 50 #199.99
-    g = 0.001 #0.008735
+    power_J = .0 #199.99
+    g = 0.008 #0.008735
     q1 = 1. #0.8
     q2 = 1.
     P_max = 200
