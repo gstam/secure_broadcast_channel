@@ -221,7 +221,7 @@ def policy(state, noise_object, noise_scale_factor, lower_bound, upper_bound):
 if __name__ == '__main__':
     lambda_v = 1.0
     Pr_arrival_Q1 = lambda_v
-    B_threshold = 1 # queue capacity
+    B_threshold = 5 # queue capacity
     capacity_Q1 = B_threshold
     PathLoss_to_D1 =2.2
     PathLoss_to_D2 = 2.2
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     distance2 = 10 #14.6
     distance3 = 5
     power_max = 200 
-    power_J = 50 #199.99
+    power_J = .0 #199.99
     g = 0.1 #0.008735
     q1 = 1. #0.8
     q2 = 1.
@@ -249,7 +249,7 @@ if __name__ == '__main__':
     lower_bound = (threshold1 / (1 + threshold1))*P_max
     upper_bound = (1/(1 + threshold2))*P_max
 
-    num_states = 1 # the state is the queue size
+    num_states = 3 # the state is the queue size
     num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
     std_dev = 1.0 # 0.2

@@ -33,7 +33,7 @@ class Environment():
         self.lower_bound = (self.threshold1 / (1 + self.threshold1))*self.P_max
         self.upper_bound = (1/(1 + self.threshold2))*self.P_max
 
-        self.state = [0, 0]
+        self.scheduled_transmissions = [0, 0]
 
         # Statistics
         self.timer = 1
@@ -85,7 +85,6 @@ class Environment():
             Pr_suc_rx_Q1_to_D2 = .0
         return Pr_suc_rx_Q1_to_D2
 
-    
     def compute_reward(self, W_tx_Q1, W_tx_Q2, w_suc_rx_Q1_to_D1, w_suc_rx_Q2_to_D2, w_suc_rx_Q1_to_D2):
         reward = .0
         if W_tx_Q1 == True and W_tx_Q2 == True and w_suc_rx_Q1_to_D1 and w_suc_rx_Q2_to_D2: #and (not w_suc_rx_Q1_to_D2):
@@ -96,37 +95,21 @@ class Environment():
             reward = 1.
         else:
             reward = .0
-        
         # Reinforce empty Q1
         if self.Q1.backlog == 0:
             reward += 1
-        
         # Reinforce the secrecy constraint.
         if W_tx_Q1 == True and not w_suc_rx_Q1_to_D2:
             reward += 1
-        
         return reward
 
     def compute_next_state(self):
-        # Get random transmissions from Q1 and Q2
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        W_tx_Q1 = False
-        if self.Q1.backlog > 0 and rnd < self.Pr_tx_Q1:
-            W_tx_Q1 = True
-            
-        rnd = np.random.default_rng().uniform(0., 1., 1)
-        W_tx_Q2 = False
-        if rnd < self.Pr_tx_Q2:
-            W_tx_Q2 = True
         
-        self.state[0] = W_tx_Q1
-        self.state[1] = W_tx_Q2
         return 0
 
-    
     def step(self, power1):
-        W_tx_Q1 = self.state[0]
-        W_tx_Q2 = self.state[1]
+        W_tx_Q1 = self.scheduled_transmissions[0]
+        W_tx_Q2 = self.scheduled_transmissions[1]
 
         # Calculate probabilities to have a successful reception at the destinations and the 
         # potential violation of the security constraint.
@@ -156,7 +139,10 @@ class Environment():
         if rnd < Pr_suc_rx_Q1_to_D2:
             w_suc_rx_Q1_to_D2 = True
         
-        # Update state after successfull transmission.
+        # Reward
+        reward = self.compute_reward(W_tx_Q1, W_tx_Q2, w_suc_rx_Q1_to_D1, w_suc_rx_Q2_to_D2, w_suc_rx_Q1_to_D2)
+
+        # Next State.
         if w_suc_rx_Q1_to_D1:
             self.Q1.packet_departure()
         
@@ -164,10 +150,22 @@ class Environment():
         rnd = np.random.default_rng().uniform(0., 1., 1)
         if rnd < self.Pr_arrival_Q1:
             self.Q1.packet_arrival()
-            
-        reward = self.compute_reward(W_tx_Q1, W_tx_Q2, w_suc_rx_Q1_to_D1, w_suc_rx_Q2_to_D2, w_suc_rx_Q1_to_D2)
+        
+        # Will Q1 transmit in the next timeslot?
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        W_tx_Q1 = False
+        if self.Q1.backlog > 0 and rnd < self.Pr_tx_Q1:
+            W_tx_Q1 = True
+        self.scheduled_transmissions[0] = W_tx_Q1
+    
+        # Will Q2 transmit in the next timeslot?
+        rnd = np.random.default_rng().uniform(0., 1., 1)
+        W_tx_Q2 = False
+        if rnd < self.Pr_tx_Q2:
+            W_tx_Q2 = True
+        self.scheduled_transmissions[1] = W_tx_Q2
 
-        self.compute_next_state(self) #self.Q1.get_backlog()
+        #self.Q1.get_backlog()
         # if w_suc_rx_Q2_to_D2 == True:
         #     self.count_packets_Q2_to_D2 += 1
 
@@ -179,10 +177,11 @@ class Environment():
 
         #backlog_reward = 1/(new_state+1)
         #reward = secrecy_reward #+ backlog_reward
+        new_state = [float(self.scheduled_transmissions[0]), float(self.scheduled_transmissions[1]), float(self.Q1.backlog)]
         self.timer += 1
         return reward, new_state
 
     def reset(self):
-        self.state = [0, 0]
+        self.scheduled_transmissions = [0, 0]
         self.Q1.set_backlog(0)
-        return self.Q1.get_backlog()
+        return  [float(self.scheduled_transmissions[0]), float(self.scheduled_transmissions[1]), float(self.Q1.backlog)]
