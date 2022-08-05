@@ -135,7 +135,7 @@ def update_target(target_weights, weights, tau):
 
 def get_actor(num_states):
     # Initialize weights
-    last_init = tf.random_uniform_initializer(minval=-0.01, maxval=0.2) #(minval=-0.01, maxval=0.2)
+    last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003) #(minval=-0.01, maxval=0.2)
     inputs = layers.Input(shape=(num_states,))
     out = layers.Dense(256, activation="relu")(inputs) # 256
     out = layers.Dense(256, activation="relu")(out)    # 256
@@ -144,6 +144,7 @@ def get_actor(num_states):
     # gstam: I commented out the following line. It is not adequate to map outputs from the interval [-1, 1] to the interval [lower_bound, upper_bound]
     # gstam: I added code that does this mapping in the policy() function.
     # outputs = outputs * upper_bound 
+    outputs = (lower_bound) + ((outputs + 1.0)/2.0)*(upper_bound - lower_bound)
     model = tf.keras.Model(inputs, outputs)
     return model
 
@@ -179,9 +180,7 @@ def policy(actor_model, state, noise_object, std, lower_bound, upper_bound, test
     # clipping the sampled action to upper or lower bound MAY introduce a significant BIAS in the action selection process since the probability to select the upper and the lower bound are increased compared to the other actions. 
     # since proper measures have been taken to select sampled_actions in the interval [lower_bound, upper_bound] and ONLY noise can drop the sampled action
     # out of the target interval we just repeat random sampling 
-    
-    
-    
+
     # std is epsilon in epsilon-greedy.
     # if np.random.default_rng().uniform(0., 1., 1) < std:
     #     # noise = np.random.normal(0, std)
@@ -196,17 +195,15 @@ def policy(actor_model, state, noise_object, std, lower_bound, upper_bound, test
     # noise = np.random.normal(0, std)
     #sampled_actions = _sampled_actions + noise #(lower_bound + 0.0001) + ((_sampled_actions.numpy()+1.)/2.)*(upper_bound - lower_bound) + noise[0]*noise_scale_factor# Normalize selected action from [-1, 1] to [0, 1] and the scale up to [lower_bound, upper_bound
     _sampled_actions = tf.squeeze(actor_model(state))
-    is_legal_action = False
-    while not is_legal_action:
-        noise = noise_object()
+    noise = noise_object()
         # print(noise, _sampled_actions)
-        sampled_actions = (lower_bound + 0.0001) + ((_sampled_actions.numpy() + noise + 1.)/2.)*(upper_bound - lower_bound) # Normalize selected action from [-1, 1] to [0, 1] and the scale up to [lower_bound, upper_bound
-        if sampled_actions >= lower_bound and sampled_actions <= upper_bound:
-            is_legal_action = True
+        #sampled_actions = (lower_bound + 0.0001) + ((_sampled_actions.numpy() + noise + 1.)/2.)*(upper_bound - lower_bound) # Normalize selected action from [-1, 1] to [0, 1] and the scale up to [lower_bound, upper_bound
+    sampled_actions = _sampled_actions + noise
+    legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
+
     
-    legal_action = sampled_actions
+    # legal_action = sampled_actions
     # print(f'State: {state} Sampled Action: {sa} Timeslot noise: {noise[0]} Scale Factor: {noise_scale_factor} Added Nosie: {noise[0]*noise_scale_factor}')
-    #legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
 
     # print(f"Sampled action: {sampled_actions}  Noise: {noise} Legal action: {legal_action}")
     # legal_action = sampled_actions      
@@ -217,7 +214,7 @@ def policy(actor_model, state, noise_object, std, lower_bound, upper_bound, test
     #   noise = noise_object()
     #   sampled_actions = lower_bound + ((sampled_actions.numpy()+1.)/2.)*(upper_bound - lower_bound) + noise*(upper_bound - lower_bound)/10 # Normalize selected action from [-1, 1] to [0, 1] and the scale up to [lower_bound, upper_bound]
     #   legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
-    return np.squeeze(legal_action), np.squeeze(_sampled_actions) #sampled_actions #[np.squeeze(legal_action)]
+    return np.squeeze(legal_action)#sampled_actions #[np.squeeze(legal_action)]
 
 def my_policy(state, lower_bound, upper_bound):
     backlog = state[0][0].numpy() 
@@ -304,8 +301,8 @@ if __name__ == '__main__':
     num_states = 2 # the state is the queue size
     num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-    std_dev = 0.6
-    std_dev_step = 0.1
+    std_dev = 0.2*(upper_bound-lower_bound)/2
+    # std_dev_step = 0.1
     ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
 
     actor_model = get_actor(num_states)
@@ -351,18 +348,18 @@ if __name__ == '__main__':
         timeslot = 0
         
         # Reduce epsilon for the epsilon-greedy.
-        if episode%10 == 0 and std_dev > 0.1:
-           std_dev -= std_dev_step
+        # if episode%4 == 0 and std_dev > 0.3:
+        #    std_dev -= std_dev_step
 
         while timeslot <= episode_duration:
             tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-            action, _action = policy(actor_model, tf_state, ou_noise, std_dev, lower_bound, upper_bound, test_scenario)
+            action = policy(actor_model, tf_state, ou_noise, std_dev, lower_bound, upper_bound, test_scenario)
             # action = my_policy(tf_state, lower_bound, upper_bound)
             reward, next_state = env.step(action)
             total_episode_reward += reward
 
             # Buffer management and learning
-            buffer.record((state, _action, reward, next_state))
+            buffer.record((state, action, reward, next_state))
             buffer.learn()
             update_target(target_actor.variables, actor_model.variables, tau)
             update_target(target_critic.variables, critic_model.variables, tau)
