@@ -4,9 +4,9 @@ from fifo_queue import Queue
 class Environment():
 
     def __init__(self, capacity, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, 
-                    distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max):
+                    distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_tx_rate_interval):
         self.timer = 1
-        self.rate_interval = 4
+        self.packet_tx_rate_interval = packet_tx_rate_interval
         # Queue with Bernoulli arrivals and finite capacity.
         self.Q1 = Queue(capacity)
         self.Pr_arrival_Q1 = Pr_arrival_Q1
@@ -15,7 +15,7 @@ class Environment():
         self.Q2 = Queue(capacity=1)
         self.Pr_arrival_Q2 = 1.
         self.N = 0
-        self.packet_rate_Q2 = self.N/self.timer
+        self.packet_rate_Q2 = self._Q2_packet_rate()
         self.Pr_tx_Q1 = q1
         self.Pr_tx_Q2 = q2
         self.lambda_v = lambda_v
@@ -43,6 +43,9 @@ class Environment():
         self.reward_interval = 100
         self.count_packets_Q2_to_D2 = 0
         self.delay_Q1 = []
+
+    def _Q2_packet_rate(self):
+        return  self.N/self.timer #self.timer self.rate_interval
 
         # The following probabilities should be functions of the environment's parameters.
         # self.Pr_suc_rx_Q1_to_D1 = Pr_suc_rx_Q1_to_D1
@@ -123,13 +126,26 @@ class Environment():
         #     reward += 1
         return reward
 
-    def compute_transition_reward(self, next_state, w_suc_rx_Q1_to_D1, w_suc_rx_Q1_to_D2):
-        w_1 = 0.5
+    def compute_transition_reward(self, next_state, w_suc_rx_Q1_to_D1, w_suc_rx_Q1_to_D2, power1):
+                
         secrecy_reward = .0
         if w_suc_rx_Q1_to_D1 == True and w_suc_rx_Q1_to_D2 == False:
-            secrecy_reward = 1.0
+            secrecy_reward = 10.0
         
-        return w_1*(1 - float(self.Q1.backlog)/self.Q1.capacity) + (1-w_1)*float(self.packet_rate_Q2) + secrecy_reward
+        Q1_utilization = next_state[0]
+        Q2_running_packet_rate = next_state[1]
+
+        reward = 0.0
+        if Q1_utilization <= 0.5 and Q2_running_packet_rate > 0.5:
+            reward = 10.0*Q2_running_packet_rate 
+        
+        # The following reward functions don't work really well. 
+            # if next_state[0] <= 0.5:
+            #     reward = 10*next_state[1] #next_state[1] is calculated using rate_interval
+                
+            #w_1*10*(1 - float(self.Q1.backlog)/self.Q1.capacity) + (1-w_1)*10*float(self.packet_rate_Q2)  + secrecy_reward
+
+        return reward + secrecy_reward  
         #return (1-w_1)*float(self.packet_rate_Q2)
 
 
@@ -179,7 +195,7 @@ class Environment():
         # Q2 throughput update
         if w_suc_rx_Q2_to_D2 == True:
             self.N += 1
-        self.packet_rate_Q2 = self.N/self.rate_interval
+        self.packet_rate_Q2 = self._Q2_packet_rate() #self.N/self.timer #self.rate_interval# self.timer 
 
         # Will Q1 transmit in the next timeslot?
         rnd = np.random.default_rng().uniform(0., 1., 1)
@@ -210,9 +226,9 @@ class Environment():
 
         # Reward
         #reward = self.compute_reward(power1, W_tx_Q1, W_tx_Q2, w_suc_rx_Q1_to_D1, w_suc_rx_Q2_to_D2, w_suc_rx_Q1_to_D2)
-        reward = self.compute_transition_reward(new_state, w_suc_rx_Q1_to_D1, w_suc_rx_Q1_to_D2)
+        reward = self.compute_transition_reward(new_state, w_suc_rx_Q1_to_D1, w_suc_rx_Q1_to_D2, power1)
 
-        if self.timer > self.rate_interval:
+        if self.timer > self.packet_tx_rate_interval:
             self.timer = 1
             self.N = 0
         else:
@@ -224,5 +240,5 @@ class Environment():
         self.scheduled_transmissions = [0, 0]
         self.Q1.set_backlog(0)
         self.N = 0
-        self.packet_rate_Q2 = self.N/self.rate_interval
+        self.packet_rate_Q2 = self._Q2_packet_rate() #self.N/self.timer#self.rate_interval #self.timer 
         return  [float(self.Q1.backlog/self.Q1.capacity), float(self.packet_rate_Q2)]
