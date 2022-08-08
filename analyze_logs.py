@@ -15,7 +15,6 @@ with open('training_logfile.csv') as csv_file:
             episode_steps = 0
         else:
             # print(f'\t{row[0]} {row[1]} {row[2]} {row[3]} {row[4]} {row[5]}')
-
             if row[0] == str(episode):
                 episode_total_reward += float(row[4])
                 episode_steps += 1
@@ -28,11 +27,12 @@ with open('training_logfile.csv') as csv_file:
     print(f'Processed {line_count} lines.')
     print(episode_total_reward_list)
 
-y = [_y/episode_steps for _y in episode_total_reward_list]
+#y = [_y/episode_steps for _y in episode_total_reward_list]
+y = [_y for _y in episode_total_reward_list]
 x = [i for i in range(1,len(y)+1)]
 plt.plot(x, y)
 plt.xlabel('episode')
-plt.ylabel('Average reward')
+plt.ylabel('Total reward')
 # plt.xlim([-1, 2])
 # plt.ylim([lower_bound, upper_bound])
 # plt.show()
