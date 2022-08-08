@@ -9,7 +9,7 @@ from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
 from environment import Environment
-
+import plot_actor_policy
 
                 
 class OUActionNoise:    
@@ -72,7 +72,7 @@ class Buffer:
     # Eager execution is turned on by default in TensorFlow 2. Decorating with tf.function allows
     # TensorFlow to build a static graph out of the logic and computations in our function.
     # This provides a large speed up for blocks of code that contain many small TensorFlow operations such as this one.
-    #@tf.function
+    @tf.function
     def update(self, state_batch, action_batch, reward_batch, next_state_batch):
         # Training and updating Actor & Critic networks.
         # See Pseudo Code.
@@ -128,18 +128,18 @@ class Buffer:
 
 # This update target parameters slowly
 # Based on rate `tau`, which is much less than one.
-# @tf.function
+@tf.function
 def update_target(target_weights, weights, tau):
     for (a, b) in zip(target_weights, weights):
         a.assign(b * tau + a * (1 - tau))
 
 def get_actor(num_states):
     # Initialize weights
-    last_init = tf.random_uniform_initializer(minval=-0.003, maxval=0.003) #(minval=-0.01, maxval=0.2)
+    last_init = tf.random_uniform_initializer(minval=-1.0, maxval=1.0) #(minval=-0.01, maxval=0.2)
     inputs = layers.Input(shape=(num_states,))
-    out = layers.Dense(256, activation="relu")(inputs) # 256
-    out = layers.Dense(256, activation="relu")(out)    # 256
-    outputs = layers.Dense(1, activation="tanh", kernel_initializer=last_init)(out)
+    out = layers.Dense(16, activation="relu")(inputs) # 256
+    out = layers.Dense(32, activation="relu")(out)    # 256
+    outputs = layers.Dense(1, activation="tanh", kernel_initializer=last_init)(out) #, kernel_initializer=last_init
     # # Upper bound 
     # gstam: I commented out the following line. It is not adequate to map outputs from the interval [-1, 1] to the interval [lower_bound, upper_bound]
     # gstam: I added code that does this mapping in the policy() function.
@@ -152,23 +152,28 @@ def get_critic(num_states, num_actions):
     # State as input
     state_input = layers.Input(shape=(num_states))
     state_out = layers.Dense(16, activation="relu")(state_input) #16
-    state_out = layers.Dense(16, activation="relu")(state_out) # 16
+    state_out = layers.Dense(32, activation="relu")(state_out) # 16
 
     # Action as input
     action_input = layers.Input(shape=(num_actions))
-    action_out = layers.Dense(16, activation="relu")(action_input) # 16
+    action_out = layers.Dense(32, activation="relu")(action_input) # 16
 
     # Both are passed through seperate layer before concatenating
     concat = layers.Concatenate()([state_out, action_out])
 
-    out = layers.Dense(256, activation="relu")(concat) #256
-    out = layers.Dense(256, activation="relu")(out) #256
+    out = layers.Dense(16, activation="relu")(concat) #256
+    out = layers.Dense(32, activation="relu")(out) #256
     outputs = layers.Dense(1)(out)
 
     # Outputs single value for give state-action
     model = tf.keras.Model([state_input, action_input], outputs)
 
     return model
+
+def test_policy(actor_model, state, lower_bound, upper_bound):
+    sampled_actions = tf.squeeze(actor_model(state))
+    legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
+    return np.squeeze(legal_action)
 
 def policy(actor_model, state, noise_object, std, lower_bound, upper_bound, test_scenario):
     # actor_model(state) is a tensor of a value
@@ -196,6 +201,7 @@ def policy(actor_model, state, noise_object, std, lower_bound, upper_bound, test
     #sampled_actions = _sampled_actions + noise #(lower_bound + 0.0001) + ((_sampled_actions.numpy()+1.)/2.)*(upper_bound - lower_bound) + noise[0]*noise_scale_factor# Normalize selected action from [-1, 1] to [0, 1] and the scale up to [lower_bound, upper_bound
     _sampled_actions = tf.squeeze(actor_model(state))
     noise = noise_object()
+    # noise = np.random.normal(0, std)
         # print(noise, _sampled_actions)
         #sampled_actions = (lower_bound + 0.0001) + ((_sampled_actions.numpy() + noise + 1.)/2.)*(upper_bound - lower_bound) # Normalize selected action from [-1, 1] to [0, 1] and the scale up to [lower_bound, upper_bound
     sampled_actions = _sampled_actions + noise
@@ -269,39 +275,43 @@ def plot_actor(actor_model, capacity_Q1, lower_bound, upper_bound):
 #global CURRENT_TIME #this is the current running second in time
 
 def define_parameters():
-    lambda_v = 0.3
+    lambda_v = 0.1
     Pr_arrival_Q1 = lambda_v
-    B_threshold = 10 # queue capacity
+    B_threshold = 4 # queue capacity
     capacity_Q1 = B_threshold
     PathLoss_to_D1 = 2
     PathLoss_to_D2 = 2
-    threshold1 = 0.1#0.5 #0.379433
-    threshold2 = 0.2#0.4 #0.225893
+    threshold1 = 0.5#0.5 #0.379433
+    threshold2 = 0.4#0.4 #0.225893
     distance1 = 10 #8.2
     distance2 = 13 #14.6
     distance3 = 5
     power_max = 200 
-    power_J = 10     #199.99
+    power_J = 20.0     #199.99
     g = 0.05         #0.008735
     q1 = 1.         #0.8
     q2 = 1.
     P_max = 200
-    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max
+    packet_rate_interval = 10
+    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval
 
 
 if __name__ == '__main__':
-    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max = define_parameters()
-    episodes = 500
+    test_scenario = False
+
+    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval = define_parameters()
+    episodes = 300
     episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
-    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max)
+    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval)
 
     lower_bound = (threshold1 / (1 + threshold1))*P_max
     upper_bound = (1/(1 + threshold2))*P_max
     print(f'Lower bound: {lower_bound} Upper bound: {upper_bound}')
+    
     num_states = 2 # the state is the queue size
     num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-    std_dev = 0.2*(upper_bound-lower_bound)/2
+    std_dev = 0.2*(upper_bound-lower_bound)#/1.0
     # std_dev_step = 0.1
     ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
 
@@ -316,6 +326,7 @@ if __name__ == '__main__':
     target_critic.set_weights(critic_model.get_weights())
 
     # Remove comment to load weights from previous runs.
+    # if test_scenario == True:
     # actor_model.load_weights("tx_power_actor.h5")
     # critic_model.load_weights("tx_power_critic.h5")
 
@@ -323,7 +334,7 @@ if __name__ == '__main__':
     # target_critic.load_weights("tx_power_target_critic.h5")
 
     # Learning rate for actor-critic models
-    critic_lr = 0.002 #10**(-4) #0.002
+    critic_lr = 0.002#10**(-4) #0.002
     actor_lr = 0.001  #10**(-3) #0.001
 
     critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
@@ -340,7 +351,6 @@ if __name__ == '__main__':
     log_file = open(log_file_name, "w") #
     log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
     
-    test_scenario = False
     for episode in range(1, episodes+1):
         total_episode_reward = 0
         state = env.reset()
@@ -348,21 +358,33 @@ if __name__ == '__main__':
         timeslot = 0
         
         # Reduce epsilon for the epsilon-greedy.
-        # if episode%4 == 0 and std_dev > 0.3:
+        if episode%5 == 0:
+            print('This is a test scenario!')
+            test_scenario = True
+            figure_name = f'actor_policy_episode_{episode}.png'
+            plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+        else: # and std_dev > 0.3:
+            test_scenario = False
         #    std_dev -= std_dev_step
 
         while timeslot <= episode_duration:
             tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-            action = policy(actor_model, tf_state, ou_noise, std_dev, lower_bound, upper_bound, test_scenario)
+            
+            if  test_scenario == True:
+                action = test_policy(actor_model, tf_state, lower_bound, upper_bound)
+            else:
+                action = policy(actor_model, tf_state, ou_noise, std_dev, lower_bound, upper_bound, test_scenario)
+            
             # action = my_policy(tf_state, lower_bound, upper_bound)
             reward, next_state = env.step(action)
             total_episode_reward += reward
 
             # Buffer management and learning
-            buffer.record((state, action, reward, next_state))
-            buffer.learn()
-            update_target(target_actor.variables, actor_model.variables, tau)
-            update_target(target_critic.variables, critic_model.variables, tau)
+            if test_scenario == False:
+                buffer.record((state, action, reward, next_state))
+                buffer.learn()
+                update_target(target_actor.variables, actor_model.variables, tau)
+                update_target(target_critic.variables, critic_model.variables, tau)
 
             # Data logging
             log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state}\n')        
@@ -373,10 +395,11 @@ if __name__ == '__main__':
         print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward} Noise std: {std_dev}')
        
         # Save models after each episode.
-        actor_model.save_weights(f"tx_power_actor.h5")
-        critic_model.save_weights(f"tx_power_critic.h5")
-        target_actor.save_weights(f"tx_power_target_actor.h5")
-        target_critic.save_weights(f"tx_power_target_critic.h5")    
+        if test_scenario == False:
+            actor_model.save_weights(f"tx_power_actor.h5")
+            critic_model.save_weights(f"tx_power_critic.h5")
+            target_actor.save_weights(f"tx_power_target_actor.h5")
+            target_critic.save_weights(f"tx_power_target_critic.h5")    
 
     log_file.close()
     
