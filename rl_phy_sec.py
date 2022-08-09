@@ -4,13 +4,14 @@
 # Reward function: function f
 
 import os
+from datetime import datetime
 import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 import matplotlib.pyplot as plt
 from environment import Environment
 import plot_actor_policy
-
+import analyze_logs
                 
 class OUActionNoise:    
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
@@ -232,44 +233,6 @@ def my_policy(state, lower_bound, upper_bound):
     #     action = lower_bound
     return action
 
-def Q_value_plot(critic_model, capacity_Q1, lower_bound, upper_bound, episode):
-    state_list = [s for s in range(capacity_Q1+1)]
-    action_list = []
-    for W_tx_Q1 in [True, False]:#, False]:
-        for W_tx_Q2 in [True]: #, False]:
-            for Q in range(capacity_Q1+1): #
-                state = [float(W_tx_Q1), float(W_tx_Q2), float(Q)]
-                tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-                action_list = []
-                critic_value_list = []
-                for a in np.linspace(-1, 1, num=200):
-                    raw_action = tf.squeeze(a) # range [-1, 1] actor_model(tf_state)
-                    action = (lower_bound + 1e-06) + ((raw_action.numpy()+1.)/2.)*(upper_bound - lower_bound)
-                    critic_value = critic_model([tf_state, tf.expand_dims(tf.convert_to_tensor(action), 0)], training=False)
-                    action_list.append(action)
-                    critic_value_list.append(critic_value.numpy()[0][0])
-
-                # print(action_list)
-                plt.plot(action_list, critic_value_list)
-                plt.title(f'W_tx_Q1: {W_tx_Q1} \/ W_tx_Q2: {W_tx_Q2} \/ Backlog:{Q}')
-                plt.xlabel('action')
-                plt.ylabel('Qvalue')
-                # plt.xlim([-1, 2])
-                # plt.ylim([lower_bound, upper_bound])
-                # plt.show()
-                plt.savefig(f'W_tx_Q1_{W_tx_Q1}_W_tx_Q2_{W_tx_Q2}_Baclog_{Q}_Qvalue_{episode}.png')
-                plt.close()
-
-def plot_actor(actor_model, capacity_Q1, lower_bound, upper_bound):
-    print(f'-----------------------------------------------------------')
-    for W_tx_Q1 in [True, False]:
-        for W_tx_Q2 in [True, False]:
-            for Q in range(capacity_Q1+1):
-                state = [float(W_tx_Q1), float(W_tx_Q2), float(Q)]
-                tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-                action = tf.squeeze(actor_model(tf_state))
-                print(f'W_tx_Q1: {W_tx_Q1} W_tx_Q2: {W_tx_Q2} Q: {Q} action: {(lower_bound + 1e-06) + ((action.numpy()+1.)/2.)*(upper_bound - lower_bound)}')
-
 #global PREVIOUS_PACKET_INDEX # this is the index of last packet in the previous timeslot
 #global CURRENT_PACKET_INDEX # this is the index for the timeslot that just finished
 #global CURRENT_TIME #this is the current running second in time
@@ -293,16 +256,17 @@ def define_parameters():
     q2 = 1.
     P_max = 200
     packet_rate_interval = 10
-    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval
-
+    Q1_utilization_threshold = 0.8
+    Q2_rate_threshold = 0.5
+    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold
 
 if __name__ == '__main__':
     test_scenario = False
 
-    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval = define_parameters()
-    episodes = 300
+    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold = define_parameters()
+    episodes = 100
     episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
-    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval)
+    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold)
 
     lower_bound = (threshold1 / (1 + threshold1))*P_max
     upper_bound = (1/(1 + threshold2))*P_max
@@ -347,7 +311,25 @@ if __name__ == '__main__':
 
     buffer = Buffer(num_states, num_actions, 50000, 64)
     
-    log_file_name = 'training_logfile.csv'
+    # Logging
+    now = datetime.now()
+    # {lambda_v}_{Pr_arrival_Q1}_{B_threshold}_{capacity_Q1}_{PathLoss_to_D1}_{PathLoss_to_D2}_{threshold1}_{threshold2}_{distance1}_{distance2}_{distance3}_{power_max}_{power_J}_{g}_{q1}_{q2}_{P_max}_{packet_rate_interval}_{Q1_utilization_threshold}_{Q2_rate_threshold}
+    exp_folder_name =f'{now.strftime("%d_%m_%Y_%H_%M_%S")}'
+    resultDir = './Results'
+    dirPath = os.path.join(resultDir, exp_folder_name)
+    if not os.path.isdir(dirPath):
+        print('The directory is not present. Creating a new one..')
+        os.mkdir(dirPath)
+    else:
+        print('The directory is present.')
+    
+    conf_file_name = f'./Results/{exp_folder_name}/configuration.txt' 
+    conf_file = open(conf_file_name, "w")
+    conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}')
+    conf_file.close()
+
+    log_file_name = f'./Results/{exp_folder_name}/training_logfile.csv'
+    figure_name = f'./Results/{exp_folder_name}/actor_policy_episode.png'
     log_file = open(log_file_name, "w") #
     log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
     
@@ -361,8 +343,8 @@ if __name__ == '__main__':
         if episode%5 == 0:
             print('This is a test scenario!')
             test_scenario = True
-            figure_name = f'actor_policy_episode_{episode}.png'
             plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+
         else: # and std_dev > 0.3:
             test_scenario = False
         #    std_dev -= std_dev_step
@@ -387,7 +369,7 @@ if __name__ == '__main__':
                 update_target(target_critic.variables, critic_model.variables, tau)
 
             # Data logging
-            log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state}\n')        
+            log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state};{env.Q1_packets_with_secrecy}\n')        
             
             state = next_state
             timeslot += 1            
@@ -402,5 +384,5 @@ if __name__ == '__main__':
             target_critic.save_weights(f"tx_power_target_critic.h5")    
 
     log_file.close()
-    
+    analyze_logs.main(exp_folder_name)
     # files.download(log_file_name)
