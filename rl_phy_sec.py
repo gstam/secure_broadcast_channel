@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 from environment import Environment
 import plot_actor_policy
 import analyze_logs
-                
+import test_environment
+
 class OUActionNoise:    
     def __init__(self, mean, std_deviation, theta=0.15, dt=1e-2, x_initial=None):
         self.theta = theta
@@ -173,6 +174,7 @@ def get_critic(num_states, num_actions):
 
 def test_policy(actor_model, state, lower_bound, upper_bound):
     sampled_actions = tf.squeeze(actor_model(state))
+    
     legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
     return np.squeeze(legal_action)
 
@@ -250,26 +252,29 @@ def define_parameters():
     distance2 = 13 #14.6
     distance3 = 5
     power_max = 200 
-    power_J = 20.0     #199.99
+    power_J = 0.0     #199.99
     g = 0.05         #0.008735
     q1 = 1.         #0.8
     q2 = 1.
     P_max = 200
     packet_rate_interval = 10
-    Q1_utilization_threshold = 0.8
+    Q1_utilization_threshold = 0.5
     Q2_rate_threshold = 0.5
-    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold
+    TIN = False
+    SD = not TIN
+    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, TIN, SD
 
 if __name__ == '__main__':
     test_scenario = False
 
-    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold = define_parameters()
-    episodes = 100
+    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, TIN, SD = define_parameters()
+    episodes = 200
     episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
-    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold)
+    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, TIN, SD)
 
+    epsilon = 1e-04
     lower_bound = (threshold1 / (1 + threshold1))*P_max
-    upper_bound = (1/(1 + threshold2))*P_max
+    upper_bound = (1/(1 + threshold2))*P_max - epsilon
     print(f'Lower bound: {lower_bound} Upper bound: {upper_bound}')
     
     num_states = 2 # the state is the queue size
@@ -325,7 +330,7 @@ if __name__ == '__main__':
     
     conf_file_name = f'./Results/{exp_folder_name}/configuration.txt' 
     conf_file = open(conf_file_name, "w")
-    conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}')
+    conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}\nTIN:{TIN}\nSD:{SD}')
     conf_file.close()
 
     log_file_name = f'./Results/{exp_folder_name}/training_logfile.csv'
@@ -333,6 +338,9 @@ if __name__ == '__main__':
     log_file = open(log_file_name, "w") #
     log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
     
+    successive_decoding = SD
+    test_environment.main(exp_folder_name, successive_decoding)
+
     for episode in range(1, episodes+1):
         total_episode_reward = 0
         state = env.reset()
@@ -344,7 +352,7 @@ if __name__ == '__main__':
             print('This is a test scenario!')
             test_scenario = True
             plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
-
+            analyze_logs.main(exp_folder_name)
         else: # and std_dev > 0.3:
             test_scenario = False
         #    std_dev -= std_dev_step

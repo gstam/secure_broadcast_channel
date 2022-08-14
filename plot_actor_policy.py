@@ -113,6 +113,7 @@ def plot_heatmap_actor_policy(actor, rate_interval, capacity, lower_bound, upper
     fig.tight_layout()
     fig.savefig(figure_name)
     fig.show()
+    plt.close()
 
     return 0
 
@@ -120,7 +121,7 @@ def plot_heatmap_actor_policy(actor, rate_interval, capacity, lower_bound, upper
 if __name__ == '__main__':
     num_states = 2
     
-    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max = rl_phy_sec.define_parameters()
+    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, TIN, SD = rl_phy_sec.define_parameters()
     
     lower_bound = (threshold1 / (1 + threshold1))*P_max
     upper_bound = (1/(1 + threshold2))*P_max
@@ -133,7 +134,7 @@ if __name__ == '__main__':
     target_actor.load_weights("tx_power_target_actor.h5")
     
     # plot_actor_policy(actor, rate_interval, capacity_Q1, lower_bound, upper_bound)
-    plot_heatmap_actor_policy(actor, rate_interval, capacity_Q1, lower_bound, upper_bound, 'actor_policy.png')
-    plot_heatmap_actor_policy(target_actor, rate_interval, capacity_Q1, lower_bound, upper_bound, 'target_actor_policy.png')
+    plot_heatmap_actor_policy(actor, rate_interval, capacity_Q1, lower_bound, upper_bound, f'actor_policy.png')
+    # plot_heatmap_actor_policy(target_actor, rate_interval, capacity_Q1, lower_bound, upper_bound, 'target_actor_policy.png')
 
     # plot_actor_policy()

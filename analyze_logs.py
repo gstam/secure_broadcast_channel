@@ -25,8 +25,8 @@ def main(data_folder):
                     episode_steps = 0
                     episode += 1
                 line_count += 1
-        print(f'Processed {line_count} lines.')
-        print(episode_total_reward_list)
+        # print(f'Processed {line_count} lines.')
+        # print(episode_total_reward_list)
 
     #y = [_y/episode_steps for _y in episode_total_reward_list]
     y = [_y for _y in episode_total_reward_list]
@@ -41,4 +41,4 @@ def main(data_folder):
     plt.close()
 
 if __name__ == '__main__':
-    main('08_08_2022_19_16_20')
+    main('11_08_2022_08_11_36')
