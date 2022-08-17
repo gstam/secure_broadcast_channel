@@ -266,7 +266,7 @@ if __name__ == '__main__':
     test_scenario = False
 
     lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
-    episodes = 200
+    episodes = 25
     episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
     env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
 
@@ -384,10 +384,10 @@ if __name__ == '__main__':
        
         # Save models after each episode.
         if test_scenario == False:
-            actor_model.save_weights(f"tx_power_actor.h5")
-            critic_model.save_weights(f"tx_power_critic.h5")
-            target_actor.save_weights(f"tx_power_target_actor.h5")
-            target_critic.save_weights(f"tx_power_target_critic.h5")    
+            actor_model.save_weights(f"./Results/{exp_folder_name}/tx_power_actor.h5")
+            critic_model.save_weights(f"./Results/{exp_folder_name}/tx_power_critic.h5")
+            target_actor.save_weights(f"./Results/{exp_folder_name}/tx_power_target_actor.h5")
+            target_critic.save_weights(f"./Results/{exp_folder_name}/tx_power_target_critic.h5")    
 
     log_file.close()
     analyze_logs.main(exp_folder_name)
