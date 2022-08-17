@@ -80,7 +80,7 @@ class Environment():
             else:
                 part_A = 0.0
             part_B = self.threshold1*(1 + self.g**2 * self.power_J)*self.distance1**self.PathLoss_to_D1/power1
-            max_part = np.max(part_A, part_B)
+            max_part = np.maximum(part_A, part_B)
             Pr_suc_rx_Q1_to_D1 = np.exp(-max_part)
         else:
             Pr_suc_rx_Q1_to_D1 = 0.0
