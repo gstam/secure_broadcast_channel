@@ -5,10 +5,9 @@ class Environment():
 
     def __init__(self, capacity, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, 
                     distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_tx_rate_interval,
-                    Q1_utilization_threshold, Q2_rate_threshold, TIN, successive_decoding):
+                    Q1_utilization_threshold, Q2_rate_threshold, successive_decoding):
         self.timer = 1
         self.packet_tx_rate_interval = packet_tx_rate_interval
-        self.TIN = TIN
         self.successive_decoding = successive_decoding
         # Queue with Bernoulli arrivals and finite capacity.
         self.Q1 = Queue(capacity)
