@@ -140,13 +140,13 @@ class Environment():
     def get_SD_Pr_suc_rx_Q1_to_D2(self, power1, W_tx_Q2):
         power2 = self._calculate_Q2_tx_power(power1, W_tx_Q2)
         if W_tx_Q2 == True:
-            if power1 > self.threshold2*power2:
-                Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold2*power2)) #/(1 + (self.threshold1*self.power_J)/(power1 - self.threshold1*power1)*(self.distance2/self.distance3)**self.PathLoss_to_D2)
+            if power1 > self.threshold1*power2:
+                Pr_suc_rx_Q1_to_D2 =  np.exp(-(self.threshold1 * self.distance2**self.PathLoss_to_D2)/(power1 - self.threshold1*power2)) #/(1 + (self.threshold1*self.power_J)/(power1 - self.threshold1*power1)*(self.distance2/self.distance3)**self.PathLoss_to_D2)
             else:
                 Pr_suc_rx_Q1_to_D2 = 0.0
         else:
-            if power1 > self.threshold2*power2:
-                Pr_suc_rx_Q1_to_D2 =  np.exp(-self.threshold2 * self.distance2**self.PathLoss_to_D2/power1) #/(1 + self.threshold2*self.power_J/power1*((self.distance2/self.distance3)**self.PathLoss_to_D2))
+            if power1 > self.threshold1*power2:
+                Pr_suc_rx_Q1_to_D2 =  np.exp(-self.threshold1 * self.distance2**self.PathLoss_to_D2/power1) #/(1 + self.threshold2*self.power_J/power1*((self.distance2/self.distance3)**self.PathLoss_to_D2))
             else:
                 Pr_suc_rx_Q1_to_D2 = 0.0
         return Pr_suc_rx_Q1_to_D2
