@@ -1,4 +1,3 @@
-# TIN-TIN
 # December 7th: I have only timeslots (not mini-slots). The agent performs an action at every timeslot.
 
 # Reward function: function f
@@ -260,17 +259,16 @@ def define_parameters():
     packet_rate_interval = 10
     Q1_utilization_threshold = 0.5
     Q2_rate_threshold = 0.5
-    TIN = False
-    SD = not TIN
-    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, TIN, SD
+    successive_decoding = False
+    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding
 
 if __name__ == '__main__':
     test_scenario = False
 
-    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, TIN, SD = define_parameters()
+    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
     episodes = 200
     episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
-    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, TIN, SD)
+    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
 
     epsilon = 1e-04
     lower_bound = (threshold1 / (1 + threshold1))*P_max
@@ -330,7 +328,7 @@ if __name__ == '__main__':
     
     conf_file_name = f'./Results/{exp_folder_name}/configuration.txt' 
     conf_file = open(conf_file_name, "w")
-    conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}\nTIN:{TIN}\nSD:{SD}')
+    conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}\nSD:{successive_decoding}')
     conf_file.close()
 
     log_file_name = f'./Results/{exp_folder_name}/training_logfile.csv'
@@ -338,7 +336,7 @@ if __name__ == '__main__':
     log_file = open(log_file_name, "w") #
     log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
     
-    successive_decoding = SD
+    successive_decoding = successive_decoding
     test_environment.main(exp_folder_name, successive_decoding)
 
     for episode in range(1, episodes+1):
