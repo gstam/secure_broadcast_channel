@@ -3,7 +3,7 @@ import rl_phy_sec
 import matplotlib.pyplot as plt
 from environment import Environment
 
-def plot_reward_probability(output_folder, env, lower_bound, upper_bound):
+def plot_reward_probability(output_folder, env, lower_bound, upper_bound, successive_decoding):
     for secrecy in [True, False]:
         for W_tx_Q1 in [True, False]:
             for W_tx_Q2 in [True, False]:
@@ -15,7 +15,7 @@ def plot_reward_probability(output_folder, env, lower_bound, upper_bound):
                 for power1 in range(int(lower_bound+1), int(upper_bound)):
                     power_list.append(power1)
                     if W_tx_Q1 == True:
-                        Pr_suc_rx_Q1_to_D1_list.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2))
+                        Pr_suc_rx_Q1_to_D1_list.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2, successive_decoding))
                         Pr_suc_rx_Q1_to_D2_list.append(env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2))
                     else:
                         Pr_suc_rx_Q1_to_D1_list.append(.0)
@@ -27,13 +27,13 @@ def plot_reward_probability(output_folder, env, lower_bound, upper_bound):
                         Pr_suc_rx_Q2_to_D2_list.append(.0)
 
                     if W_tx_Q1 == True and W_tx_Q2 == True and secrecy == True:
-                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2) * env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1, W_tx_Q2) * (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2))) 
+                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2, successive_decoding) * env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1, W_tx_Q2) * (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2))) 
                     if W_tx_Q1 == True and W_tx_Q2 == False and secrecy == True:
-                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2) * (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)))
+                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2, successive_decoding) * (1 - env.get_Pr_suc_rx_Q1_to_D2(power1, W_tx_Q2)))
                     if W_tx_Q1 == True and W_tx_Q2 == True and secrecy == False:
-                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2) * env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1, W_tx_Q2)) 
+                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2, successive_decoding) * env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1, W_tx_Q2)) 
                     if W_tx_Q1 == True and W_tx_Q2 == False and secrecy == False:
-                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2))
+                        reward_probability.append(env.get_Pr_suc_rx_Q1_to_D1(power1, W_tx_Q2, successive_decoding))
                     if W_tx_Q1 == False and W_tx_Q2 == True:
                         reward_probability.append(env.get_Pr_suc_rx_Q2_to_D2(power1, W_tx_Q1, W_tx_Q2))
                     if W_tx_Q1 == False and W_tx_Q2 == False:
@@ -46,7 +46,7 @@ def plot_reward_probability(output_folder, env, lower_bound, upper_bound):
                 plt.xlabel('Action (tx power)')
                 plt.ylabel('Probability') 
                 plt.legend()
-                plt.savefig(f'./Results/{output_folder}/te_W_tx_Q1_{W_tx_Q1}_W_tx_Q2_{W_tx_Q2}_Secrecy_{secrecy}.png', format='png')
+                plt.savefig(f'./Results/{output_folder}/te_W_tx_Q1_{W_tx_Q1}_W_tx_Q2_{W_tx_Q2}_Secrecy_{secrecy}_SD_{successive_decoding}.png', format='png')
                 plt.close()
 
 
@@ -57,10 +57,7 @@ def main(output_folder, successive_decoding):
     lower_bound = (threshold1 / (1 + threshold1))*P_max
     upper_bound = (1/(1 + threshold2))*P_max
     print(f'lower_bound: {lower_bound} upper_bound: {upper_bound}')
-    if successive_decoding == True:
-        plot_SD_reward_probability(output_folder, env, lower_bound, upper_bound)
-    else:
-        plot_reward_probability(output_folder, env, lower_bound, upper_bound)
+    plot_reward_probability(output_folder, env, lower_bound, upper_bound, successive_decoding)
 
     return 0
 
