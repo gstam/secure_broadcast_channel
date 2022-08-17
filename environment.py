@@ -64,28 +64,38 @@ class Environment():
         return power_2 #np.maximum(np.minimum( (self.P_max - power), self.upper_bound ), self.lower_bound)
 
     # Probability that D1 will successfuly decode the packet sent by Q1. The computation depends on whether Q2 transmits or not.
-    def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2):
+    def get_Pr_suc_rx_Q1_to_D1(self, power1, W_tx_Q2, successive_decoding):
         power2 = self._calculate_Q2_tx_power(power1, W_tx_Q2)
-        if power1 > self.threshold1*power2:
-            # Equation (7) first part (before the multiplication symbol X)
-            if W_tx_Q2 == True:  
-                Pr_suc_rx_Q1_to_D1 = np.exp(-(self.threshold1 * self.distance1**self.PathLoss_to_D1)/(power1 - self.threshold1 * power2) * (1 + self.power_J*self.g**2))
-            else: 
-                Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss_to_D1)/power1) *(1 + self.power_J*self.g**2))#no jamming.
+        if W_tx_Q2 == False:
+             Pr_suc_rx_Q1_to_D1 = np.exp(((-self.threshold1 * self.distance1**self.PathLoss_to_D1)/power1) *(1 + self.power_J*self.g**2))
+        elif W_tx_Q2 == True and successive_decoding == False:
+            if power1 > self.threshold1*power2:
+                Pr_suc_rx_Q1_to_D1 = np.exp(-(self.threshold1 * self.distance1**self.PathLoss_to_D1) * (1 + self.power_J*self.g**2)/(power1 - self.threshold1 * power2))
+            else:
+                Pr_suc_rx_Q1_to_D1 = 0.0
+        elif W_tx_Q2 == True and successive_decoding == True:
+            if power2 > self.threshold2*power1:
+                part_A = (self.threshold2*(1 + self.g**2 * self.power_J)*self.distance1**self.PathLoss_to_D1)/(power2 - self.threshold2*power1)
+            else:
+                part_A = 0.0
+            part_B = self.threshold1*(1 + self.g**2 * self.power_J)*self.distance1**self.PathLoss_to_D1/power1
+            max_part = np.max(part_A, part_B)
+            Pr_suc_rx_Q1_to_D1 = np.exp(-max_part)
         else:
-            Pr_suc_rx_Q1_to_D1 = .0
+            Pr_suc_rx_Q1_to_D1 = 0.0
+        
         return Pr_suc_rx_Q1_to_D1
 
     # Probability that D2 will successfuly decode the packet sent by Q2. The computation depends on whether Q1 transmits or not.
-    def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1,  W_tx_Q2):
+    def get_Pr_suc_rx_Q2_to_D2(self, power1, W_tx_Q1,  W_tx_Q2, successive_decoding):
         power2 = self._calculate_Q2_tx_power(power1, W_tx_Q2)
-        if power2 > self.threshold2*power1:
-            if W_tx_Q1 == True:       # Jammingself.PathLoss
+        if W_tx_Q1 == False:
+            Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/power2) 
+        else: # W_tx_Q1 == True:
+            if power2 > self.threshold2*power1:
                 Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/(power2 - self.threshold2*power1))/(1 + (self.threshold2 * self.power_J/(power2-self.threshold2*power1))*((self.distance2/self.distance3)**self.PathLoss_to_D2))
-            else:                           # No jamming
-                Pr_suc_rx_Q2_to_D2 =  np.exp(-(self.threshold2 * self.distance2**self.PathLoss_to_D2)/power2) 
-        else:
-            Pr_suc_rx_Q2_to_D2 = .0
+            else:
+                Pr_suc_rx_Q2_to_D2 = .0
         return Pr_suc_rx_Q2_to_D2
 
     # Probability that D2 will successfuly decode the packet sent by Q1. This is the secrecy violation scenario!
