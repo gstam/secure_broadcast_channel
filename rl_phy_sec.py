@@ -259,7 +259,7 @@ def define_parameters():
     packet_rate_interval = 10
     Q1_utilization_threshold = 0.5
     Q2_rate_threshold = 0.5
-    successive_decoding = False
+    successive_decoding = True
     return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding
 
 if __name__ == '__main__':
@@ -346,7 +346,7 @@ if __name__ == '__main__':
         timeslot = 0
         
         # Reduce epsilon for the epsilon-greedy.
-        if episode%5 == 0:
+        if episode%3 == 0:
             print('This is a test scenario!')
             test_scenario = True
             plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
