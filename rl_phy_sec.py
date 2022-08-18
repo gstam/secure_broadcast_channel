@@ -247,9 +247,9 @@ def define_parameters():
     PathLoss_to_D2 = 2
     threshold1 = 0.5#0.5 #0.379433
     threshold2 = 0.4#0.4 #0.225893
-    distance1 = 10 #8.2
-    distance2 = 13 #14.6
-    distance3 = 5
+    distance1 = 10
+    distance2 = 14 #14.6
+    distance3 = 10
     power_max = 200 
     power_J = 0.0     #199.99
     g = 0.05         #0.008735
@@ -259,136 +259,145 @@ def define_parameters():
     packet_rate_interval = 10
     Q1_utilization_threshold = 0.5
     Q2_rate_threshold = 0.5
-    successive_decoding = True
+    successive_decoding = False
     return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding
 
 if __name__ == '__main__':
-    test_scenario = False
+    scenario_folder = "TIN"
+    for experiment in range(2):
+        test_scenario = False
 
-    lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
-    episodes = 25
-    episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
-    env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
+        lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
+        episodes = 2
+        episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
+        env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
 
-    epsilon = 1e-04
-    lower_bound = (threshold1 / (1 + threshold1))*P_max
-    upper_bound = (1/(1 + threshold2))*P_max - epsilon
-    print(f'Lower bound: {lower_bound} Upper bound: {upper_bound}')
-    
-    num_states = 2 # the state is the queue size
-    num_actions = 1 # the action is the transmission power for packets from queue Q1 
-
-    std_dev = 0.2*(upper_bound-lower_bound)#/1.0
-    # std_dev_step = 0.1
-    ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
-
-    actor_model = get_actor(num_states)
-    critic_model = get_critic(num_states, num_actions)
-
-    target_actor = get_actor(num_states)
-    target_critic = get_critic(num_states, num_actions)
-
-    # Making the weights equal initially
-    target_actor.set_weights(actor_model.get_weights())
-    target_critic.set_weights(critic_model.get_weights())
-
-    # Remove comment to load weights from previous runs.
-    # if test_scenario == True:
-    # actor_model.load_weights("tx_power_actor.h5")
-    # critic_model.load_weights("tx_power_critic.h5")
-
-    # target_actor.load_weights("tx_power_target_actor.h5")
-    # target_critic.load_weights("tx_power_target_critic.h5")
-
-    # Learning rate for actor-critic models
-    critic_lr = 0.002#10**(-4) #0.002
-    actor_lr = 0.001  #10**(-3) #0.001
-
-    critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
-    actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
-
-    # Discount factor for future rewards
-    gamma = 0.99
-    # Used to update target networks
-    tau = 0.005 #0.005 
-
-    buffer = Buffer(num_states, num_actions, 50000, 64)
-    
-    # Logging
-    now = datetime.now()
-    # {lambda_v}_{Pr_arrival_Q1}_{B_threshold}_{capacity_Q1}_{PathLoss_to_D1}_{PathLoss_to_D2}_{threshold1}_{threshold2}_{distance1}_{distance2}_{distance3}_{power_max}_{power_J}_{g}_{q1}_{q2}_{P_max}_{packet_rate_interval}_{Q1_utilization_threshold}_{Q2_rate_threshold}
-    exp_folder_name =f'{now.strftime("%d_%m_%Y_%H_%M_%S")}'
-    resultDir = './Results'
-    dirPath = os.path.join(resultDir, exp_folder_name)
-    if not os.path.isdir(dirPath):
-        print('The directory is not present. Creating a new one..')
-        os.mkdir(dirPath)
-    else:
-        print('The directory is present.')
-    
-    conf_file_name = f'./Results/{exp_folder_name}/configuration.txt' 
-    conf_file = open(conf_file_name, "w")
-    conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}\nSD:{successive_decoding}')
-    conf_file.close()
-
-    log_file_name = f'./Results/{exp_folder_name}/training_logfile.csv'
-    figure_name = f'./Results/{exp_folder_name}/actor_policy_episode.png'
-    log_file = open(log_file_name, "w") #
-    log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
-    
-    successive_decoding = successive_decoding
-    test_environment.main(exp_folder_name, successive_decoding)
-
-    for episode in range(1, episodes+1):
-        total_episode_reward = 0
-        state = env.reset()
-        # print(f'Episode: {episode}')
-        timeslot = 0
+        epsilon = 1e-04
+        lower_bound = (threshold1 / (1 + threshold1))*P_max
+        upper_bound = (1/(1 + threshold2))*P_max - epsilon
+        print(f'Lower bound: {lower_bound} Upper bound: {upper_bound}')
         
-        # Reduce epsilon for the epsilon-greedy.
-        if episode%3 == 0:
-            print('This is a test scenario!')
-            test_scenario = True
-            plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
-            analyze_logs.main(exp_folder_name)
-        else: # and std_dev > 0.3:
-            test_scenario = False
-        #    std_dev -= std_dev_step
+        num_states = 2 # the state is the queue size
+        num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-        while timeslot <= episode_duration:
-            tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-            
-            if  test_scenario == True:
-                action = test_policy(actor_model, tf_state, lower_bound, upper_bound)
-            else:
-                action = policy(actor_model, tf_state, ou_noise, std_dev, lower_bound, upper_bound, test_scenario)
-            
-            # action = my_policy(tf_state, lower_bound, upper_bound)
-            reward, next_state = env.step(action)
-            total_episode_reward += reward
+        std_dev = 0.2*(upper_bound-lower_bound)#/1.0
+        # std_dev_step = 0.1
+        ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
 
-            # Buffer management and learning
+        actor_model = get_actor(num_states)
+        critic_model = get_critic(num_states, num_actions)
+
+        target_actor = get_actor(num_states)
+        target_critic = get_critic(num_states, num_actions)
+
+        # Making the weights equal initially
+        target_actor.set_weights(actor_model.get_weights())
+        target_critic.set_weights(critic_model.get_weights())
+
+        # Remove comment to load weights from previous runs.
+        # if test_scenario == True:
+        # actor_model.load_weights("tx_power_actor.h5")
+        # critic_model.load_weights("tx_power_critic.h5")
+
+        # target_actor.load_weights("tx_power_target_actor.h5")
+        # target_critic.load_weights("tx_power_target_critic.h5")
+
+        # Learning rate for actor-critic models
+        critic_lr = 0.002#10**(-4) #0.002
+        actor_lr = 0.001  #10**(-3) #0.001
+
+        critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
+        actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
+
+        # Discount factor for future rewards
+        gamma = 0.99
+        # Used to update target networks
+        tau = 0.005 #0.005 
+
+        buffer = Buffer(num_states, num_actions, 50000, 64)
+        
+        # Logging
+        now = datetime.now()
+        # {lambda_v}_{Pr_arrival_Q1}_{B_threshold}_{capacity_Q1}_{PathLoss_to_D1}_{PathLoss_to_D2}_{threshold1}_{threshold2}_{distance1}_{distance2}_{distance3}_{power_max}_{power_J}_{g}_{q1}_{q2}_{P_max}_{packet_rate_interval}_{Q1_utilization_threshold}_{Q2_rate_threshold}
+         #f'{now.strftime("%d_%m_%Y_%H_%M_%S")}'
+        
+        resultDir = f'./Results/{scenario_folder}/'
+        if not os.path.isdir(resultDir):
+            os.mkdir(resultDir)
+
+        exp_folder_name =f'{experiment}'
+        dirPath = os.path.join(resultDir, exp_folder_name)
+        if not os.path.isdir(dirPath):
+            print('The directory is not present. Creating a new one..')
+            os.mkdir(dirPath)
+        else:
+            print('The directory is present.')
+        
+        conf_file_name = os.path.join(dirPath, 'configuration.txt')
+        conf_file = open(conf_file_name, "w")
+        conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}\nSD:{successive_decoding}')
+        conf_file.close()
+
+        log_file_name = os.path.join(dirPath, 'training_logfile.csv') 
+        figure_name = os.path.join(dirPath, 'actor_policy_episode.png')
+        log_file = open(log_file_name, "w") #
+        log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
+        
+        successive_decoding = successive_decoding
+        # test_environment.main(exp_folder_name, successive_decoding)
+
+        for episode in range(episodes):
+            total_episode_reward = 0
+            state = env.reset()
+            # print(f'Episode: {episode}')
+            timeslot = 0
+            
+            # Reduce epsilon for the epsilon-greedy.
+            if (episode+1)%5 == 0:
+                print('This is a test scenario!')
+                test_scenario = True
+                # plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+                # analyze_logs.main(exp_folder_name)
+            else: # and std_dev > 0.3:
+                test_scenario = False
+                # std_dev -= std_dev_step
+
+            while timeslot <= episode_duration:
+                tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
+                
+                if  test_scenario == True:
+                    action = test_policy(actor_model, tf_state, lower_bound, upper_bound)
+                else:
+                    action = policy(actor_model, tf_state, ou_noise, std_dev, lower_bound, upper_bound, test_scenario)
+                
+                # action = my_policy(tf_state, lower_bound, upper_bound)
+                reward, next_state = env.step(action)
+                total_episode_reward += reward
+
+                # Buffer management and learning
+                if test_scenario == False:
+                    buffer.record((state, action, reward, next_state))
+                    buffer.learn()
+                    update_target(target_actor.variables, actor_model.variables, tau)
+                    update_target(target_critic.variables, critic_model.variables, tau)
+
+                # Data logging
+                log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state};{env.Q1_packets_with_secrecy}\n')        
+                
+                state = next_state
+                timeslot += 1            
+            
+            print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward} Noise std: {std_dev}')
+        
+            # Save models after each episode.
             if test_scenario == False:
-                buffer.record((state, action, reward, next_state))
-                buffer.learn()
-                update_target(target_actor.variables, actor_model.variables, tau)
-                update_target(target_critic.variables, critic_model.variables, tau)
+                actor_model.save_weights(os.path.join(dirPath, "tx_power_actor.h5"))
+                critic_model.save_weights(os.path.join(dirPath,"tx_power_critic.h5"))
+                target_actor.save_weights(os.path.join(dirPath,"tx_power_target_actor.h5"))
+                target_critic.save_weights(os.path.join(dirPath,"tx_power_target_critic.h5"))    
 
-            # Data logging
-            log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state};{env.Q1_packets_with_secrecy}\n')        
-            
-            state = next_state
-            timeslot += 1            
-        
-        print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward} Noise std: {std_dev}')
-       
-        # Save models after each episode.
-        if test_scenario == False:
-            actor_model.save_weights(f"./Results/{exp_folder_name}/tx_power_actor.h5")
-            critic_model.save_weights(f"./Results/{exp_folder_name}/tx_power_critic.h5")
-            target_actor.save_weights(f"./Results/{exp_folder_name}/tx_power_target_actor.h5")
-            target_critic.save_weights(f"./Results/{exp_folder_name}/tx_power_target_critic.h5")    
-
-    log_file.close()
-    analyze_logs.main(exp_folder_name)
-    # files.download(log_file_name)
+        log_file.close()
+        plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+        analyze_logs.main(dirPath)
+        # files.download(log_file_name)
+    # analyze_logs.plot_scenario_results(f'./Results/{scenario_folder}/', episodes)
