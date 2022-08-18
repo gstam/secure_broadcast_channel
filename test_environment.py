@@ -50,7 +50,7 @@ def plot_reward_probability(output_folder, env, lower_bound, upper_bound, succes
                 plt.close()
 
 
-def main(output_folder, successive_decoding):
+def main(output_folder):
     lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = rl_phy_sec.define_parameters()
     env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
     
@@ -62,9 +62,8 @@ def main(output_folder, successive_decoding):
     return 0
 
 if __name__ == '__main__':
-    output_folder = '09_08_2022_15_08_02'
-    successive_decoding = True
-    main(output_folder, successive_decoding)
+    output_folder = 'TIN'
+    main(output_folder)
 
 
 
