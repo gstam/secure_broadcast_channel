@@ -248,8 +248,8 @@ def define_parameters():
     threshold1 = 0.5#0.5 #0.379433
     threshold2 = 0.4#0.4 #0.225893
     distance1 = 10
-    distance2 = 14 #14.6
-    distance3 = 10
+    distance2 = 13 #14.6
+    distance3 = 5
     power_max = 200 
     power_J = 0.0     #199.99
     g = 0.05         #0.008735
@@ -264,11 +264,11 @@ def define_parameters():
 
 if __name__ == '__main__':
     scenario_folder = "TIN"
-    for experiment in range(2):
+    for experiment in range(10):
         test_scenario = False
 
         lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
-        episodes = 2
+        episodes = 60
         episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
         env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
 
