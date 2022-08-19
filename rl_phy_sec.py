@@ -138,8 +138,8 @@ def get_actor(num_states):
     # Initialize weights
     last_init = tf.random_uniform_initializer(minval=-0.1, maxval=0.1) #(minval=-0.01, maxval=0.2)
     inputs = layers.Input(shape=(num_states,))
-    out = layers.Dense(16, activation="relu")(inputs) # 256
-    out = layers.Dense(32, activation="relu")(out)    # 256
+    out = layers.Dense(256, activation="relu")(inputs) # 256
+    out = layers.Dense(256, activation="relu")(out)    # 256
     outputs = layers.Dense(1, activation="tanh", kernel_initializer=last_init)(out) #, kernel_initializer=last_init
     # # Upper bound 
     # gstam: I commented out the following line. It is not adequate to map outputs from the interval [-1, 1] to the interval [lower_bound, upper_bound]
@@ -153,17 +153,17 @@ def get_critic(num_states, num_actions):
     # State as input
     state_input = layers.Input(shape=(num_states))
     state_out = layers.Dense(16, activation="relu")(state_input) #16
-    state_out = layers.Dense(32, activation="relu")(state_out) # 16
+    state_out = layers.Dense(16, activation="relu")(state_out) # 16
 
     # Action as input
     action_input = layers.Input(shape=(num_actions))
-    action_out = layers.Dense(32, activation="relu")(action_input) # 16
+    action_out = layers.Dense(16, activation="relu")(action_input) # 16
 
     # Both are passed through seperate layer before concatenating
     concat = layers.Concatenate()([state_out, action_out])
 
-    out = layers.Dense(16, activation="relu")(concat) #256
-    out = layers.Dense(32, activation="relu")(out) #256
+    out = layers.Dense(256, activation="relu")(concat) #256
+    out = layers.Dense(256, activation="relu")(out) #256
     outputs = layers.Dense(1)(out)
 
     # Outputs single value for give state-action
@@ -263,12 +263,12 @@ def define_parameters():
     return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding
 
 if __name__ == '__main__':
-    scenario_folder = "TIN_0"
+    scenario_folder = "TIN_1"
     for experiment in range(10):
         test_scenario = False
 
         lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
-        episodes = 100
+        episodes = 200
         episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
         env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
 
@@ -280,7 +280,7 @@ if __name__ == '__main__':
         num_states = 2 # the state is the queue size
         num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-        std_dev = 0.25*(upper_bound-lower_bound)/2.0#/1.0
+        std_dev = 0.2*(upper_bound-lower_bound)#/1.0
         # std_dev_step = 0.1
         ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
 
@@ -353,13 +353,13 @@ if __name__ == '__main__':
             timeslot = 0
             
             # Reduce epsilon for the epsilon-greedy.
-            if (episode+1)%5 == 0:
-                print('This is a test scenario!')
-                test_scenario = True
+            if (episode+1)%10 == 0:
+                # print('This is a test scenario!')
+                # test_scenario = True
                 plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
                 # analyze_logs.main(exp_folder_name, episodes)
-            else: # and std_dev > 0.3:
-                test_scenario = False
+            # else: # and std_dev > 0.3:
+            #     test_scenario = False
                 # std_dev -= std_dev_step
 
             while timeslot <= episode_duration:
