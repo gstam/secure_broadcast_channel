@@ -75,8 +75,8 @@ def plot_scenario_results(scenario_folder, episode_number):
     y = np.mean(scenario_rewards_matrix, axis=0)
     x = [i for i in range(len(y))]
     y_std = np.std(scenario_rewards_matrix, axis=0)
-    y_low = y - y_std/2
-    y_high = y + y_std/2
+    y_low = y - y_std
+    y_high = y + y_std
     fig, ax = plt.subplots()
     ax.plot(x, y)
     ax.fill_between(x, y_low, y_high, alpha=.5, linewidth=0)
@@ -103,8 +103,8 @@ def main(data_folder, episode_number):
     plt.close()
 
 if __name__ == '__main__':
-    scenario_folder = './Results/TIN/'
-    episode_number = 60
+    scenario_folder = './Results/TIN_0/'
+    episode_number = 100
     # get_rewards_for_scenario('./Results/TIN/')
     plot_scenario_results(scenario_folder, episode_number)
     # main('11_08_2022_08_11_36', episode_number)
