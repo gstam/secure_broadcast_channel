@@ -159,7 +159,7 @@ class Environment():
         Q2_running_packet_rate = next_state[1]
 
         reward = 0.0
-        if Q1_utilization <= self.Q1_utilization_threshold and Q2_running_packet_rate > self.Q2_rate_threshold:
+        if Q1_utilization <= self.Q1_utilization_threshold and Q2_running_packet_rate >= self.Q2_rate_threshold:
             reward = 10.0*Q2_running_packet_rate 
         
         # The following reward functions don't work really well. 
