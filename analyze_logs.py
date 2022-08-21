@@ -103,8 +103,8 @@ def main(data_folder, episode_number):
     plt.close()
 
 if __name__ == '__main__':
-    scenario_folder = './Results/TIN_0/'
-    episode_number = 100
+    scenario_folder = './Results/SD_0/'
+    episode_number = 50
     # get_rewards_for_scenario('./Results/TIN/')
     plot_scenario_results(scenario_folder, episode_number)
     # main('11_08_2022_08_11_36', episode_number)
