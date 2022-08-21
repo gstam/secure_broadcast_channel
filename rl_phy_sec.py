@@ -240,7 +240,7 @@ def define_parameters():
     distance2 = 13 #14.6
     distance3 = 5
     power_max = 200 
-    power_J = 0.0     #199.99
+    power_J = 20.0     #199.99
     g = 0.05         #0.008735
     q1 = 1.         #0.8
     q2 = 1.
@@ -248,11 +248,11 @@ def define_parameters():
     packet_rate_interval = 10
     Q1_utilization_threshold = 0.5
     Q2_rate_threshold = 0.5
-    successive_decoding = True
+    successive_decoding = False
     return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding
 
 if __name__ == '__main__':
-    scenario_folder = "SD_1"
+    scenario_folder = "TIN_JAM"
     for experiment in range(50):
         test_scenario = False
         lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
@@ -269,7 +269,7 @@ if __name__ == '__main__':
         num_states = 2 # the state is the queue size
         num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-        std_dev_factor = 0.2
+        std_dev_factor = 0.6
         std_dev_factor_step = 0.1
         noise_power_range = (upper_bound-lower_bound)/1.0
         std_dev = std_dev_factor*noise_power_range
