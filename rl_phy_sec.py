@@ -136,10 +136,10 @@ def update_target(target_weights, weights, tau):
 
 def get_actor(num_states):
     # Initialize weights
-    last_init = tf.random_uniform_initializer(minval=-0.1, maxval=0.1) #(minval=-0.01, maxval=0.2)
+    last_init = tf.random_uniform_initializer(minval=-1.0, maxval=1.0) #(minval=-0.01, maxval=0.2)
     inputs = layers.Input(shape=(num_states,))
-    out = layers.Dense(256, activation="relu")(inputs) # 256
-    out = layers.Dense(256, activation="relu")(out)    # 256
+    out = layers.Dense(32, activation="relu")(inputs) # 256
+    out = layers.Dense(64, activation="relu")(out)    # 256
     outputs = layers.Dense(1, activation="tanh", kernel_initializer=last_init)(out) #, kernel_initializer=last_init
     # # Upper bound 
     # gstam: I commented out the following line. It is not adequate to map outputs from the interval [-1, 1] to the interval [lower_bound, upper_bound]
@@ -152,18 +152,18 @@ def get_actor(num_states):
 def get_critic(num_states, num_actions):
     # State as input
     state_input = layers.Input(shape=(num_states))
-    state_out = layers.Dense(16, activation="relu")(state_input) #16
-    state_out = layers.Dense(16, activation="relu")(state_out) # 16
+    state_out = layers.Dense(32, activation="relu")(state_input) #16
+    state_out = layers.Dense(64, activation="relu")(state_out) # 16
 
     # Action as input
     action_input = layers.Input(shape=(num_actions))
-    action_out = layers.Dense(16, activation="relu")(action_input) # 16
+    action_out = layers.Dense(64, activation="relu")(action_input) # 16
 
     # Both are passed through seperate layer before concatenating
     concat = layers.Concatenate()([state_out, action_out])
 
-    out = layers.Dense(256, activation="relu")(concat) #256
-    out = layers.Dense(256, activation="relu")(out) #256
+    out = layers.Dense(32, activation="relu")(concat) #256
+    out = layers.Dense(64, activation="relu")(out) #256
     outputs = layers.Dense(1)(out)
 
     # Outputs single value for give state-action
@@ -173,11 +173,10 @@ def get_critic(num_states, num_actions):
 
 def test_policy(actor_model, state, lower_bound, upper_bound):
     sampled_actions = tf.squeeze(actor_model(state))
-    
     legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
     return np.squeeze(legal_action)
 
-def policy(actor_model, state, noise_object, std, lower_bound, upper_bound, test_scenario):
+def policy(actor_model, state, noise_object, lower_bound, upper_bound):
     # actor_model(state) is a tensor of a value
     # rate_scalar = 0
     # while lambda_v >= rate_scalar: # and rate < 1:
@@ -224,16 +223,6 @@ def policy(actor_model, state, noise_object, std, lower_bound, upper_bound, test
     #   legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
     return np.squeeze(legal_action)#sampled_actions #[np.squeeze(legal_action)]
 
-def my_policy(state, lower_bound, upper_bound):
-    backlog = state[0][0].numpy() 
-    throughput = state[0][1].numpy()
-    action = lower_bound
-    # if backlog > 0: 
-    #     action = upper_bound
-    # else:
-    #     action = lower_bound
-    return action
-
 #global PREVIOUS_PACKET_INDEX # this is the index of last packet in the previous timeslot
 #global CURRENT_PACKET_INDEX # this is the index for the timeslot that just finished
 #global CURRENT_TIME #this is the current running second in time
@@ -259,16 +248,16 @@ def define_parameters():
     packet_rate_interval = 10
     Q1_utilization_threshold = 0.5
     Q2_rate_threshold = 0.5
-    successive_decoding = False
+    successive_decoding = True
     return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding
 
 if __name__ == '__main__':
-    scenario_folder = "TIN_1"
-    for experiment in range(10):
+    scenario_folder = "SD_1"
+    for experiment in range(50):
         test_scenario = False
-
         lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
-        episodes = 200
+        episodes = 50
+
         episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
         env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
 
@@ -280,8 +269,10 @@ if __name__ == '__main__':
         num_states = 2 # the state is the queue size
         num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-        std_dev = 0.2*(upper_bound-lower_bound)#/1.0
-        # std_dev_step = 0.1
+        std_dev_factor = 0.2
+        std_dev_factor_step = 0.1
+        noise_power_range = (upper_bound-lower_bound)/1.0
+        std_dev = std_dev_factor*noise_power_range
         ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
 
         actor_model = get_actor(num_states)
@@ -317,7 +308,7 @@ if __name__ == '__main__':
         buffer = Buffer(num_states, num_actions, 50000, 64)
         
         # Logging
-        now = datetime.now()
+        # now = datetime.now()
         # {lambda_v}_{Pr_arrival_Q1}_{B_threshold}_{capacity_Q1}_{PathLoss_to_D1}_{PathLoss_to_D2}_{threshold1}_{threshold2}_{distance1}_{distance2}_{distance3}_{power_max}_{power_J}_{g}_{q1}_{q2}_{P_max}_{packet_rate_interval}_{Q1_utilization_threshold}_{Q2_rate_threshold}
          #f'{now.strftime("%d_%m_%Y_%H_%M_%S")}'
         
@@ -344,23 +335,31 @@ if __name__ == '__main__':
         log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
         
         # test_environment.main(exp_folder_name, successive_decoding)
-        plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+        # plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
 
         for episode in range(episodes):
             total_episode_reward = 0
             state = env.reset()
             # print(f'Episode: {episode}')
             timeslot = 0
-            
+
             # Reduce epsilon for the epsilon-greedy.
             if (episode+1)%10 == 0:
-                # print('This is a test scenario!')
-                # test_scenario = True
                 plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
-                # analyze_logs.main(exp_folder_name, episodes)
-            # else: # and std_dev > 0.3:
-            #     test_scenario = False
-                # std_dev -= std_dev_step
+            
+            if (episode+1)%5 == 0:
+                test_scenario = True
+            else:
+                test_scenario = False
+
+            # if (episode+1)%5 == 0 and std_dev_factor > 0.15:
+            if (episode+1)%10 == 0 and std_dev_factor > 0.15:
+                std_dev_factor -= std_dev_factor_step
+                std_dev = std_dev_factor*noise_power_range
+                noise_initial = ou_noise()
+                ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1), x_initial=noise_initial)
+
+            # analyze_logs.main(exp_folder_name, episodes)
 
             while timeslot <= episode_duration:
                 tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
@@ -368,7 +367,7 @@ if __name__ == '__main__':
                 if  test_scenario == True:
                     action = test_policy(actor_model, tf_state, lower_bound, upper_bound)
                 else:
-                    action = policy(actor_model, tf_state, ou_noise, std_dev, lower_bound, upper_bound, test_scenario)
+                    action = policy(actor_model, tf_state, ou_noise, lower_bound, upper_bound)
                 
                 # action = my_policy(tf_state, lower_bound, upper_bound)
                 reward, next_state = env.step(action)
