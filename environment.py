@@ -151,9 +151,9 @@ class Environment():
 
     def compute_transition_reward(self, next_state, w_suc_rx_Q1_to_D1, w_suc_rx_Q1_to_D2):
         secrecy_reward = .0
-        # if w_suc_rx_Q1_to_D2 == False and w_suc_rx_Q1_to_D1 == True:
-        #     secrecy_reward += 10.0
-        #     self.Q1_packets_with_secrecy += 1
+        if w_suc_rx_Q1_to_D2 == False and w_suc_rx_Q1_to_D1 == True:
+            secrecy_reward += 10.0
+            self.Q1_packets_with_secrecy += 1
         
         Q1_utilization = next_state[0]
         Q2_running_packet_rate = next_state[1]
