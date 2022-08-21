@@ -69,19 +69,24 @@ def get_list_of_total_episode_rewards_lists_for_scenario(scenario_folder, episod
                 scenario_rewards_list.append(total_episode_reward_nparray)
     return scenario_rewards_list
 
-def plot_scenario_results(scenario_folder, episode_number):
-    scenario_rewards_list = get_list_of_total_episode_rewards_lists_for_scenario(scenario_folder, episode_number)
-    scenario_rewards_matrix = np.array(scenario_rewards_list)
-    y = np.mean(scenario_rewards_matrix, axis=0)
-    x = [i for i in range(len(y))]
-    y_std = np.std(scenario_rewards_matrix, axis=0)
-    y_low = y - y_std
-    y_high = y + y_std
+def plot_scenario_results(scenario_folders, episode_number):
     fig, ax = plt.subplots()
-    ax.plot(x, y)
-    ax.fill_between(x, y_low, y_high, alpha=.5, linewidth=0)
+    interference_mitigation_algorithm = ['TIN', 'SD']
+    i = 0
+    for scenario_folder in scenario_folders:
+        scenario_rewards_list = get_list_of_total_episode_rewards_lists_for_scenario(scenario_folder, episode_number)
+        scenario_rewards_matrix = np.array(scenario_rewards_list)
+        y = np.mean(scenario_rewards_matrix, axis=0)
+        x = [i for i in range(len(y))]
+        y_std = np.std(scenario_rewards_matrix, axis=0)
+        y_low = y - y_std
+        y_high = y + y_std
+        ax.plot(x, y)
+        ax.fill_between(x, y_low, y_high, alpha=.5, linewidth=0, label=f'{interference_mitigation_algorithm[i]}')
+        i += 1
     plt.xlabel('Episode')
     plt.ylabel('Average Total Reward')
+    ax.legend()
     # plt.xlim([-1, 2])
     # plt.ylim([lower_bound, upper_bound])
     # plt.show()
@@ -103,7 +108,7 @@ def main(data_folder, episode_number):
     plt.close()
 
 if __name__ == '__main__':
-    scenario_folder = './Results/SD_0/'
+    scenario_folder = ['./Results/TIN_9/', './Results/SD_1/']
     episode_number = 50
     # get_rewards_for_scenario('./Results/TIN/')
     plot_scenario_results(scenario_folder, episode_number)
