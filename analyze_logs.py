@@ -108,7 +108,7 @@ def main(data_folder, episode_number):
     plt.close()
 
 if __name__ == '__main__':
-    scenario_folder = ['./Results/TIN_9/', './Results/SD_1/']
+    scenario_folder = ['./Results/TIN_JAM/']#['./Results/TIN_9/', './Results/SD_1/']
     episode_number = 50
     # get_rewards_for_scenario('./Results/TIN/')
     plot_scenario_results(scenario_folder, episode_number)
