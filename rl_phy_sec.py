@@ -269,7 +269,7 @@ if __name__ == '__main__':
         num_states = 2 # the state is the queue size
         num_actions = 1 # the action is the transmission power for packets from queue Q1 
 
-        std_dev_factor = 0.6
+        std_dev_factor = 0.2
         std_dev_factor_step = 0.1
         noise_power_range = (upper_bound-lower_bound)/1.0
         std_dev = std_dev_factor*noise_power_range
@@ -353,11 +353,11 @@ if __name__ == '__main__':
                 test_scenario = False
 
             # if (episode+1)%5 == 0 and std_dev_factor > 0.15:
-            if (episode+1)%10 == 0 and std_dev_factor > 0.15:
-                std_dev_factor -= std_dev_factor_step
-                std_dev = std_dev_factor*noise_power_range
-                noise_initial = ou_noise()
-                ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1), x_initial=noise_initial)
+            # if (episode+1)%10 == 0 and std_dev_factor > 0.15:
+            #     std_dev_factor -= std_dev_factor_step
+            #     std_dev = std_dev_factor*noise_power_range
+            #     noise_initial = ou_noise()
+            #     ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1), x_initial=noise_initial)
 
             # analyze_logs.main(exp_folder_name, episodes)
 
