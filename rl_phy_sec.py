@@ -171,6 +171,44 @@ def get_critic(num_states, num_actions):
 
     return model
 
+def prioritize_Q1_utilization_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold):
+    Q1_utilization = state[0]
+    Q2_running_rate = state[1]
+    if Q1_utilization > Q1_utilization_threshold:
+        power1 = P_max-0.1
+    else:
+        if Q2_running_rate < Q2_rate_threshold:
+            power1 = 0.1
+        else:
+            power1 = P_max-0.1
+    return power1
+
+def prioritize_Q2_rate_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold):
+    Q1_utilization = state[0]
+    Q2_running_rate = state[1]
+    if Q2_running_rate < Q2_rate_threshold:
+            power1 = 0.1
+    else:
+        if Q1_utilization > Q1_utilization_threshold:
+            power1 = P_max - 0.1
+        else:
+            power1 = 0.1
+    return power1
+
+def fair_power_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold):
+    Q1_utilization = state[0]
+    Q2_running_rate = state[1]
+    if Q1_utilization > Q1_utilization_threshold and Q2_running_rate < Q2_rate_threshold:
+        power1 = P_max/2
+    elif Q1_utilization > Q1_utilization_threshold and Q2_running_rate >= Q2_rate_threshold:
+        power1 = P_max - 0.1
+    elif not Q1_utilization > Q1_utilization_threshold and Q2_running_rate < Q2_rate_threshold:
+        power1 = 0.1
+    else:
+        power1 = P_max/2
+    return power1
+
+
 def test_policy(actor_model, state, lower_bound, upper_bound):
     sampled_actions = tf.squeeze(actor_model(state))
     legal_action = np.clip(sampled_actions, lower_bound, upper_bound)
@@ -248,155 +286,177 @@ def define_parameters():
     packet_rate_interval = 10
     Q1_utilization_threshold = 0.5
     Q2_rate_threshold = 0.5
-    successive_decoding = False
-    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding
+    successive_decoding = True
+    base_line_policy = 'prioritize_Q1_utilization_policy'
+    return lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding, base_line_policy
 
 if __name__ == '__main__':
-    scenario_folder = "TIN_JAM"
-    for experiment in range(50):
-        test_scenario = False
-        lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding = define_parameters()
-        episodes = 50
-
+    # for scenario_folder in ["BL_JAM_fair_power_policy", "BL_JAM_prioritize_Q1", "BL_JAM_prioritize_Q2", "BL_JAM_ddpg"]:
+    for scenario_folder in ["BL_JAM_fair_power_policy_SD", "BL_JAM_prioritize_Q1_SD", "BL_JAM_prioritize_Q2_SD", "BL_JAM_ddpg_SD"]:
+        print_policy_heatmap_every_episode = 100
+        set_test_scenario_every_episode = 100
+        experiment_number = 1
+        episode_number = 50
         episode_duration = 1000 # fix max_time because I don't get an error of exceeding the index in vectors describing the queue
-        env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
+        test_scenario = True 
+        for experiment in range(experiment_number):
+            lambda_v, Pr_arrival_Q1, B_threshold, capacity_Q1, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2, distance1,  distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding, base_line_policy = define_parameters()
+            env = Environment(capacity_Q1, Pr_arrival_Q1, lambda_v, PathLoss_to_D1, PathLoss_to_D2, threshold1, threshold2,  distance1, distance2, distance3, power_max, power_J, g, q1, q2, P_max, packet_rate_interval, Q1_utilization_threshold, Q2_rate_threshold, successive_decoding)
 
-        epsilon = 1e-04
-        lower_bound = (threshold1 / (1 + threshold1))*P_max
-        upper_bound = (1/(1 + threshold2))*P_max - epsilon
-        print(f'Lower bound: {lower_bound} Upper bound: {upper_bound}')
-        
-        num_states = 2 # the state is the queue size
-        num_actions = 1 # the action is the transmission power for packets from queue Q1 
-
-        std_dev_factor = 0.2
-        std_dev_factor_step = 0.1
-        noise_power_range = (upper_bound-lower_bound)/1.0
-        std_dev = std_dev_factor*noise_power_range
-        ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
-
-        actor_model = get_actor(num_states)
-        critic_model = get_critic(num_states, num_actions)
-
-        target_actor = get_actor(num_states)
-        target_critic = get_critic(num_states, num_actions)
-
-        # Making the weights equal initially
-        target_actor.set_weights(actor_model.get_weights())
-        target_critic.set_weights(critic_model.get_weights())
-
-        # Remove comment to load weights from previous runs.
-        # if test_scenario == True:
-        # actor_model.load_weights("tx_power_actor.h5")
-        # critic_model.load_weights("tx_power_critic.h5")
-
-        # target_actor.load_weights("tx_power_target_actor.h5")
-        # target_critic.load_weights("tx_power_target_critic.h5")
-
-        # Learning rate for actor-critic models
-        critic_lr = 0.002#10**(-4) #0.002
-        actor_lr = 0.001  #10**(-3) #0.001
-
-        critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
-        actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
-
-        # Discount factor for future rewards
-        gamma = 0.99
-        # Used to update target networks
-        tau = 0.005 #0.005 
-
-        buffer = Buffer(num_states, num_actions, 50000, 64)
-        
-        # Logging
-        # now = datetime.now()
-        # {lambda_v}_{Pr_arrival_Q1}_{B_threshold}_{capacity_Q1}_{PathLoss_to_D1}_{PathLoss_to_D2}_{threshold1}_{threshold2}_{distance1}_{distance2}_{distance3}_{power_max}_{power_J}_{g}_{q1}_{q2}_{P_max}_{packet_rate_interval}_{Q1_utilization_threshold}_{Q2_rate_threshold}
-         #f'{now.strftime("%d_%m_%Y_%H_%M_%S")}'
-        
-        resultDir = f'./Results/{scenario_folder}/'
-        if not os.path.isdir(resultDir):
-            os.mkdir(resultDir)
-
-        exp_folder_name =f'{experiment}'
-        dirPath = os.path.join(resultDir, exp_folder_name)
-        if not os.path.isdir(dirPath):
-            print('The directory is not present. Creating a new one..')
-            os.mkdir(dirPath)
-        else:
-            print('The directory is present.')
-        
-        conf_file_name = os.path.join(dirPath, 'configuration.txt')
-        conf_file = open(conf_file_name, "w")
-        conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}\nSD:{successive_decoding}')
-        conf_file.close()
-
-        log_file_name = os.path.join(dirPath, 'training_logfile.csv') 
-        figure_name = os.path.join(dirPath, 'actor_policy_episode.png')
-        log_file = open(log_file_name, "w") #
-        log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
-        
-        # test_environment.main(exp_folder_name, successive_decoding)
-        # plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
-
-        for episode in range(episodes):
-            total_episode_reward = 0
-            state = env.reset()
-            # print(f'Episode: {episode}')
-            timeslot = 0
-
-            # Reduce epsilon for the epsilon-greedy.
-            if (episode+1)%10 == 0:
-                plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+            epsilon = 1e-04
+            lower_bound = (threshold1 / (1 + threshold1))*P_max
+            upper_bound = (1/(1 + threshold2))*P_max - epsilon
+            print(f'Lower bound: {lower_bound} Upper bound: {upper_bound}')
             
-            if (episode+1)%5 == 0:
-                test_scenario = True
+            num_states = 2 # the state is the queue size
+            num_actions = 1 # the action is the transmission power for packets from queue Q1 
+
+            std_dev_factor = 0.2
+            std_dev_factor_step = 0.1
+            noise_power_range = (upper_bound-lower_bound)/1.0
+            std_dev = std_dev_factor*noise_power_range
+            ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1))
+
+            actor_model = get_actor(num_states)
+            critic_model = get_critic(num_states, num_actions)
+
+            target_actor = get_actor(num_states)
+            target_critic = get_critic(num_states, num_actions)
+
+            # Making the weights equal initially
+            target_actor.set_weights(actor_model.get_weights())
+            target_critic.set_weights(critic_model.get_weights())
+
+            # Remove comment to load weights from previous runs.
+            # if test_scenario == True:
+            actor_model.load_weights("tx_power_actor.h5")
+            critic_model.load_weights("tx_power_critic.h5")
+
+            target_actor.load_weights("tx_power_target_actor.h5")
+            target_critic.load_weights("tx_power_target_critic.h5")
+
+            # Learning rate for actor-critic models
+            critic_lr = 0.002#10**(-4) #0.002
+            actor_lr = 0.001  #10**(-3) #0.001
+
+            critic_optimizer = tf.keras.optimizers.Adam(critic_lr)
+            actor_optimizer = tf.keras.optimizers.Adam(actor_lr)
+
+            # Discount factor for future rewards
+            gamma = 0.99
+            # Used to update target networks
+            tau = 0.005 #0.005 
+
+            buffer = Buffer(num_states, num_actions, 50000, 64)
+            
+            # Logging
+            # now = datetime.now()
+            # {lambda_v}_{Pr_arrival_Q1}_{B_threshold}_{capacity_Q1}_{PathLoss_to_D1}_{PathLoss_to_D2}_{threshold1}_{threshold2}_{distance1}_{distance2}_{distance3}_{power_max}_{power_J}_{g}_{q1}_{q2}_{P_max}_{packet_rate_interval}_{Q1_utilization_threshold}_{Q2_rate_threshold}
+            #f'{now.strftime("%d_%m_%Y_%H_%M_%S")}'
+            
+            resultDir = f'./Results/{scenario_folder}/'
+            if not os.path.isdir(resultDir):
+                os.mkdir(resultDir)
+
+            exp_folder_name =f'{experiment}'
+            dirPath = os.path.join(resultDir, exp_folder_name)
+            if not os.path.isdir(dirPath):
+                print('The directory is not present. Creating a new one..')
+                os.mkdir(dirPath)
             else:
-                test_scenario = False
-
-            # if (episode+1)%5 == 0 and std_dev_factor > 0.15:
-            # if (episode+1)%10 == 0 and std_dev_factor > 0.15:
-            #     std_dev_factor -= std_dev_factor_step
-            #     std_dev = std_dev_factor*noise_power_range
-            #     noise_initial = ou_noise()
-            #     ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1), x_initial=noise_initial)
-
-            # analyze_logs.main(exp_folder_name, episodes)
-
-            while timeslot <= episode_duration:
-                tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
-                
-                if  test_scenario == True:
-                    action = test_policy(actor_model, tf_state, lower_bound, upper_bound)
-                else:
-                    action = policy(actor_model, tf_state, ou_noise, lower_bound, upper_bound)
-                
-                # action = my_policy(tf_state, lower_bound, upper_bound)
-                reward, next_state = env.step(action)
-                total_episode_reward += reward
-
-                # Buffer management and learning
-                if test_scenario == False:
-                    buffer.record((state, action, reward, next_state))
-                    buffer.learn()
-                    update_target(target_actor.variables, actor_model.variables, tau)
-                    update_target(target_critic.variables, critic_model.variables, tau)
-
-                # Data logging
-                log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state};{env.Q1_packets_with_secrecy}\n')        
-                
-                state = next_state
-                timeslot += 1            
+                print('The directory is present.')
             
-            print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward} Noise std: {std_dev}')
-        
-            # Save models after each episode.
-            if test_scenario == False:
-                actor_model.save_weights(os.path.join(dirPath, "tx_power_actor.h5"))
-                critic_model.save_weights(os.path.join(dirPath,"tx_power_critic.h5"))
-                target_actor.save_weights(os.path.join(dirPath,"tx_power_target_actor.h5"))
-                target_critic.save_weights(os.path.join(dirPath,"tx_power_target_critic.h5"))    
+            conf_file_name = os.path.join(dirPath, 'configuration.txt')
+            conf_file = open(conf_file_name, "w")
+            conf_file.write(f'lambda_v:{lambda_v}\nPr_arrival_Q1:{Pr_arrival_Q1}\nB_threshold:{B_threshold}\ncapacity_Q1:{capacity_Q1}\nPathLoss_to_D1:{PathLoss_to_D1}\nPathLoss_to_D2:{PathLoss_to_D2}\nthreshold1:{threshold1}\nthreshold2:{threshold2}\ndistance1:{distance1}\ndistance2:{distance2}\ndistance3:{distance3}\npower_max:{power_max}\npower_J:{power_J}\ng:{g}\nq1:{q1}\nq2:{q2}\nP_max:{P_max}\npacket_rate_interval:{packet_rate_interval}\nQ1_utilization_threshold:{Q1_utilization_threshold}\nQ2_rate_threshold:{Q2_rate_threshold}\nSD:{successive_decoding}')
+            conf_file.close()
 
-        log_file.close()
-        plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
-        analyze_logs.main(dirPath, episodes)
-        # files.download(log_file_name)
-    analyze_logs.plot_scenario_results(f'./Results/{scenario_folder}/', episodes)
+            log_file_name = os.path.join(dirPath, 'training_logfile.csv') 
+            figure_name = os.path.join(dirPath, 'actor_policy_episode.png')
+            log_file = open(log_file_name, "w") #
+            log_file.write(f'Episode;Timeslot;State;Action;Reward;Next_State\n')        
+            
+            # test_environment.main(exp_folder_name, successive_decoding)
+            # plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+
+            for episode in range(episode_number):
+                total_episode_reward = 0
+                state = env.reset()
+                # print(f'Episode: {episode}')
+                timeslot = 0
+
+                # Reduce epsilon for the epsilon-greedy.
+                # if (episode+1)%print_policy_heatmap_every_episode == 0:
+                #     plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+                
+                # if (episode+1)%set_test_scenario_every_episode == 0:
+                #     test_scenario = True
+                # else:
+                #     test_scenario = False
+
+                # if (episode+1)%5 == 0 and std_dev_factor > 0.15:
+                # if (episode+1)%10 == 0 and std_dev_factor > 0.15:
+                #     std_dev_factor -= std_dev_factor_step
+                #     std_dev = std_dev_factor*noise_power_range
+                #     noise_initial = ou_noise()
+                #     ou_noise = OUActionNoise(mean=np.zeros(1), std_deviation=float(std_dev) * np.ones(1), x_initial=noise_initial)
+
+                # analyze_logs.main(exp_folder_name, episodes)
+                print(f'Test scenario: {test_scenario}')
+                while timeslot <= episode_duration:
+                    tf_state = tf.expand_dims(tf.convert_to_tensor(state), 0)
+                    # if base_line_policy == 'prioritize_Q1_utilization_policy':
+                    #     action = prioritize_Q1_utilization_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold)
+                    # else:
+                    if test_scenario == True:
+                        if scenario_folder == "BL_JAM_fair_power_policy":
+                            action = fair_power_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold)
+                        elif scenario_folder == "BL_JAM_prioritize_Q1":
+                            action = prioritize_Q1_utilization_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold)
+                        elif scenario_folder == "BL_JAM_prioritize_Q2":
+                            action = prioritize_Q2_rate_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold)
+                        elif scenario_folder == "BL_JAM_ddpg":
+                            action = test_policy(actor_model, tf_state, lower_bound, upper_bound)
+                        elif scenario_folder == "BL_JAM_fair_power_policy_SD":
+                            action = fair_power_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold)
+                        elif scenario_folder == "BL_JAM_prioritize_Q1_SD":
+                            action = prioritize_Q1_utilization_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold)
+                        elif scenario_folder == "BL_JAM_prioritize_Q2_SD":
+                            action = prioritize_Q2_rate_policy(state, lower_bound, upper_bound, Q1_utilization_threshold, Q2_rate_threshold)
+                        elif scenario_folder == "BL_JAM_ddpg_SD":
+                            action = test_policy(actor_model, tf_state, lower_bound, upper_bound)
+                        else:
+                            print('No policy selected.')
+                            exit()
+                    else:
+                        action = policy(actor_model, tf_state, ou_noise, lower_bound, upper_bound)
+                    
+                    # action = my_policy(tf_state, lower_bound, upper_bound)
+                    reward, next_state = env.step(action)
+                    total_episode_reward += reward
+
+                    # Buffer management and learning
+                    if test_scenario == False:
+                        buffer.record((state, action, reward, next_state))
+                        buffer.learn()
+                        update_target(target_actor.variables, actor_model.variables, tau)
+                        update_target(target_critic.variables, critic_model.variables, tau)
+
+                    # Data logging
+                    log_file.write(f'{episode};{timeslot};{state};{action};{reward};{next_state};{env.Q1_packets_with_secrecy}\n')        
+
+                    state = next_state
+                    timeslot += 1            
+                print(f'Episode: {episode} \t Total Episode Reward: {total_episode_reward} Noise std: {std_dev}')
+                # Save models after each episode.
+                if test_scenario == False:
+                    actor_model.save_weights(os.path.join(dirPath, "tx_power_actor.h5"))
+                    critic_model.save_weights(os.path.join(dirPath,"tx_power_critic.h5"))
+                    target_actor.save_weights(os.path.join(dirPath,"tx_power_target_actor.h5"))
+                    target_critic.save_weights(os.path.join(dirPath,"tx_power_target_critic.h5"))    
+
+            log_file.close()
+            plot_actor_policy.plot_heatmap_actor_policy(actor_model, packet_rate_interval, capacity_Q1, lower_bound, upper_bound, figure_name)
+            analyze_logs.main(dirPath, episode_number)
+            # files.download(log_file_name)
+        # analyze_logs.plot_scenario_results(f'./Results/{scenario_folder}/', episode_number)
